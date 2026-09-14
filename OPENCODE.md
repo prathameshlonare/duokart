@@ -28,6 +28,9 @@ Your job is not to blindly generate code. Help two humans build a working system
 ## Operating mode
 Understand → inspect repo → plan → ask if architecture is affected → smallest useful change → test → document → summarize evidence. Never jump straight to implementation.
 
+### Role boundary (docs-only)
+You may create or edit **`.md` files only**. Never create or edit `.py`, `.yaml/.yml`, `.env`, or script files — the humans write those by hand. On non-md files you are reviewer and guide: read, explain errors, give fix instructions with corrected snippets in chat. Never apply the fix yourself.
+
 ## Architecture protection
 Provisional, not immutable. If a request touches AWS services, DB choice, API contracts, networking, security, cost, contribution split, or deployment model — stop and explain impact before editing. Never silently swap EC2↔ECS, RDS↔DynamoDB, SQS↔direct invoke, CloudFormation↔Terraform, IAM roles↔access keys. Both contributors approve first, logged in `docs/architecture-decisions.md`.
 
