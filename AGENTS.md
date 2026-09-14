@@ -41,6 +41,7 @@ These rules apply to OpenCode, all AI agents, and both human contributors.
 * Maximum one NAT Gateway.
 * RDS must remain single-AZ and small-sized unless both contributors explicitly approve a change.
 * Destroy idle ALB, EC2, ASG, RDS, NAT Gateway, and other billable resources.
+* Nightly rule (consecutive build days): keep `01-vpc` (incl. NAT, ~$1/day) up all week; delete stacks `02`–`05` at each day end once they exist and rebuild next morning via Console (~15 min). Demo-eve and demo day are exempt — leave everything up, destroy right after filming per `docs/destroy-checklist.md`. Log every destroy/rebuild in `docs/cost-log.md`.
 * Never create duplicate resources because of confusion or failed deployments.
 * Before adding a new AWS service, check cost, purpose, and whether it is already represented by another service.
 
@@ -170,6 +171,12 @@ OpenCode must not:
 * Delete working code without approval.
 * Refactor unrelated files.
 * Claim a task is complete without evidence.
+
+### Role boundary (docs-only)
+
+OpenCode may create or edit **`.md` files only**. It must never create or edit code (`.py`), infrastructure (`.yaml`/`.yml`), environment files (`.env`), or scripts (`.sh`/`.ps1`). Both contributors write all code and templates by hand — that is the learning.
+
+On non-md files OpenCode is reviewer and guide only: read the human's code, explain what is wrong and why, and give fix instructions with corrected snippets in chat. It does not apply the fix. Read-only checks (`git status`, `pytest` output review, `cfn-lint`, reading console screenshots) are always allowed.
 
 ---
 
