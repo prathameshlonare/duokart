@@ -58,7 +58,7 @@ Windows PowerShell: `.venv\Scripts\Activate.ps1`. Verify with `python --version`
 
 ## 4. Together — Budget and Cost Protection
 
-Shared budget: $130 max (Swapnil's, expiring — destroy fast). Warn $60, stop-and-destroy $100.
+Shared budget: 170 credits max (Swapnil's, expiring — destroy fast). Warn $60, stop-and-destroy $100.
 - [ ] Budget alerts at 60 + 100 to both emails (Console: Billing → Budgets). Screenshot into `docs/cost-log.md`.
 - [ ] Record in `docs/cost-log.md`: amount, thresholds, date, Swapnil as billing owner, who presses destroy.
 - [ ] No billable infra today. Idle rule going forward: if not demoing within 24h, delete ALB/RDS/NAT stacks.

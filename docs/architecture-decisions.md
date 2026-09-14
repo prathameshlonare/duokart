@@ -12,4 +12,6 @@
 | 2026-09-14 | SNS mandatory (Option B: SQS → Lambda → DynamoDB → SNS) | Buyer + owner notifications are core demo; SES deferred, SNS email is enough | p + s |
 | 2026-09-14 | Route53 real domain deferred; alias-to-ALB design doc-only | No $12-13 purchase for a temp stack; ALB DNS used in demo | p + s |
 
-Add new rows for Swapnil's change requests — never edit a signed row.
+| 2026-09-14 | Credit total corrected $130 → 170 credits (Billing → Credits) | Console shows 170; 3 docs said $130. Budget amount set to 170, alerts unchanged ($60 warn / $100 stop-and-destroy). Affected: `duokart-project.md`, `docs/day-0-setup.md`, `docs/cost-log.md` | s (Swapnil) — needs p sign in review |
+
+Add new rows for further change requests — never edit a signed row.

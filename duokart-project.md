@@ -2,7 +2,7 @@
 
 **Team:** Prathamesh + Swapnil, 50/50 real work split so both can claim it on resume.
 **Stack:** Python (app + Lambda worker).
-**AWS:** one shared account ($130 credits, Swapnil's — expiring, destroy fast), us-east-2 (Ohio). Temporary — destroyed after demo. Console-only, no CLI.
+**AWS:** one shared account (170 credits, Swapnil's — expiring, destroy fast), us-east-2 (Ohio). Temporary — destroyed after demo. Console-only, no CLI.
 **GitHub:** one new repo (Swapnil owner, Prathamesh collaborator), PR-only (`p/*` + `s/*`, mutual review). Prathamesh forks/mirrors after final tag.
 **Time:** 1 week, 4 hrs/day from Sept 14, 2026. Setup-first: folders + docs before building.
 **Tool:** opencode-friendly layout.
@@ -52,7 +52,7 @@ Deferred to stay in 1 week (noted in README, not built): managed-app alternative
 - Cost note: what burned money (NAT + ALB + RDS), idle vs demo-day cost, destroy checklist.
 - Contribution log: who owned which part (matches PR history).
 
-## Cost guardrails ($130 shared)
+## Cost guardrails (170 shared)
 
 - 1 gateway only, small single database, stop/delete ALB + DB when not demoing.
 - Budget alarms at $60 (warn) and $100 (stop work + destroy).
