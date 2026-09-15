@@ -1,0 +1,413 @@
+# DuoKart 01-vpc — custom VPC for us-east-2 (Ohio), console-only deploy.
+#
+# Purpose: private network foundation. Public subnets hold the ALB, NAT Gateway
+# and bastion; private subnets hold EC2 app servers (Day 2) and RDS Multi-AZ
+# (Day 3, per 2026-09-15 diagram decision). SGs enforce internet -> ALB -> app
+# -> DB layering, plus admin-only SSH to the bastion.
+#
+# Deploy: CloudFormation -> Create stack -> "Upload a template file" -> this
+#   file -> region us-east-2 -> stack name `duokart-01-vpc`. At creation, paste
+#   your public IP/32 into AdminSshCidr. Wait for CREATE_COMPLETE, screenshot
+#   the Outputs tab into the Day-1 PR.
+# Verify locally (no AWS calls):
+#   python -c "import yaml; yaml.safe_load(open('infra/01-vpc.yaml')); print('YAML OK')"
+# Consumers: 02-alb.yaml imports subnets + alb/app/bastion SGs; 03-data.yaml
+#   imports private subnets + db-sg. Destroy: delete this stack LAST
+#   (see docs/destroy-checklist.md); nightly rule keeps it up all week.
+#
+# COST NOTE (required per day-1 doc): ONE NAT Gateway serves both private
+# subnets. A second NAT in 2b would survive a 2a outage but doubles the hourly
+# burn (~largest Day-1 burner, ~$1/day) on a temporary demo stack — hence 1 NAT
+# in the first public subnet. Bastion key pair is created via Console
+# (EC2 -> Key Pairs); the *.pem NEVER enters git (see .gitignore).
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "DuoKart Day 1: VPC 10.0.0.0/16, 2 public + 2 private subnets, IGW, 1 NAT, layered SGs incl. bastion (us-east-2)"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: "Tag value for Environment. Keep 'dev' for the whole project."
+  VpcCidr:
+    Type: String
+    Default: 10.0.0.0/16
+    Description: "CIDR for the DuoKart VPC."
+  PublicSubnet1Cidr:
+    Type: String
+    Default: 10.0.1.0/24
+    Description: "Public subnet, first AZ (ALB + NAT + bastion)."
+  PublicSubnet2Cidr:
+    Type: String
+    Default: 10.0.2.0/24
+    Description: "Public subnet, second AZ (ALB second leg)."
+  PrivateSubnet1Cidr:
+    Type: String
+    Default: 10.0.11.0/24
+    Description: "Private subnet, first AZ (app servers + RDS)."
+  PrivateSubnet2Cidr:
+    Type: String
+    Default: 10.0.12.0/24
+    Description: "Private subnet, second AZ (app servers + RDS)."
+  AvailabilityZone1:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-2a
+    Description: "First AZ. Typed parameter so Console offers only valid AZs."
+  AvailabilityZone2:
+    Type: AWS::EC2::AvailabilityZone::Name
+    Default: us-east-2b
+    Description: "Second AZ."
+  AdminSshCidr:
+    Type: String
+    Description: "Your public IP in /32 form (e.g. 203.0.113.7/32) for bastion SSH. Never 0.0.0.0/0."
+
+Resources:
+  # --- VPC + Internet access ---
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VpcCidr
+      EnableDnsSupport: true
+      EnableDnsHostnames: true # RDS/ALB need resolvable DNS names later
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-vpc"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-igw"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  GatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      VpcId: !Ref Vpc
+      InternetGatewayId: !Ref InternetGateway
+
+  # --- Subnets: 2 public + 2 private ---
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Ref PublicSubnet1Cidr
+      AvailabilityZone: !Ref AvailabilityZone1
+      MapPublicIpOnLaunch: true # ALB + NAT + bastion need public IPs
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-public-1"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Ref PublicSubnet2Cidr
+      AvailabilityZone: !Ref AvailabilityZone2
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-public-2"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Ref PrivateSubnet1Cidr
+      AvailabilityZone: !Ref AvailabilityZone1
+      MapPublicIpOnLaunch: false # private: no direct internet, egress via NAT
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-private-1"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref Vpc
+      CidrBlock: !Ref PrivateSubnet2Cidr
+      AvailabilityZone: !Ref AvailabilityZone2
+      MapPublicIpOnLaunch: false
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-private-2"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # --- Single NAT Gateway (billable) in the first public subnet ---
+  NatEip:
+    Type: AWS::EC2::EIP
+    DependsOn: GatewayAttachment
+    Properties:
+      Domain: vpc
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-nat-eip"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  NatGateway:
+    Type: AWS::EC2::NatGateway
+    DependsOn: GatewayAttachment
+    Properties:
+      AllocationId: !GetAtt NatEip.AllocationId
+      SubnetId: !Ref PublicSubnet1
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-nat"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # --- Routing: public via IGW, private via NAT ---
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-public-rt"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    DependsOn: GatewayAttachment
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+
+  PublicSubnet1Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-private-rt"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGateway # single NAT: both AZs share it (cost tradeoff, see header)
+
+  PrivateSubnet1Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+  # --- Layered SGs: internet -> ALB -> app -> DB, plus admin-only SSH ---
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "ALB: HTTP/HTTPS from the internet only"
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+          Description: "Buyer traffic to shop site"
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+          Description: "HTTPS (cert added later; port open now)"
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-alb-sg"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  AppSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "App servers: traffic from the ALB SG only, never the open internet"
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+          Description: "ALB health checks + forwarded traffic"
+        - IpProtocol: tcp
+          FromPort: 5000
+          ToPort: 5000
+          SourceSecurityGroupId: !Ref AlbSecurityGroup
+          Description: "Flask app port (target-group flexibility)"
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-app-sg"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  DbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "RDS MySQL: 3306 from app servers only"
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          SourceSecurityGroupId: !Ref AppSecurityGroup
+          Description: "MySQL from app tier only (least privilege, no internet)"
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-db-sg"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: "Bastion: SSH from admin IP only (2026-09-15 diagram decision)"
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: !Ref AdminSshCidr
+          Description: "Admin SSH only - never 0.0.0.0/0; key via Console, never git"
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-bastion-sg"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+Outputs:
+  VpcId:
+    Description: "DuoKart VPC ID"
+    Value: !Ref Vpc
+    Export:
+      Name: !Sub "${AWS::StackName}-VpcId"
+  PublicSubnet1Id:
+    Description: "Public subnet, first AZ (ALB + NAT + bastion)"
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicSubnet1Id"
+  PublicSubnet2Id:
+    Description: "Public subnet, second AZ (ALB)"
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub "${AWS::StackName}-PublicSubnet2Id"
+  PrivateSubnet1Id:
+    Description: "Private subnet, first AZ (app + RDS)"
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateSubnet1Id"
+  PrivateSubnet2Id:
+    Description: "Private subnet, second AZ (app + RDS)"
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub "${AWS::StackName}-PrivateSubnet2Id"
+  AlbSecurityGroupId:
+    Description: "ALB SG (02-alb.yaml attaches the ALB here)"
+    Value: !Ref AlbSecurityGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-AlbSgId"
+  AppSecurityGroupId:
+    Description: "App SG (02-alb.yaml launch template uses this)"
+    Value: !Ref AppSecurityGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-AppSgId"
+  DbSecurityGroupId:
+    Description: "DB SG (03-data.yaml RDS attaches here)"
+    Value: !Ref DbSecurityGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-DbSgId"
+  BastionSecurityGroupId:
+    Description: "Bastion SG (02-alb.yaml bastion instance uses this)"
+    Value: !Ref BastionSecurityGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-BastionSgId"
+  NatGatewayId:
+    Description: "Single NAT Gateway (billable — nightly keep-up per AGENTS.md)"
+    Value: !Ref NatGateway
