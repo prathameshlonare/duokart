@@ -41,7 +41,7 @@ These rules apply to OpenCode, all AI agents, and both human contributors.
 * Maximum one NAT Gateway.
 * RDS must remain single-AZ and small-sized unless both contributors explicitly approve a change.
 * Destroy idle ALB, EC2, ASG, RDS, NAT Gateway, and other billable resources.
-* Nightly rule (consecutive build days): keep `01-vpc` (incl. NAT, ~$1/day) up all week; delete stacks `02`–`05` at each day end once they exist and rebuild next morning via Console (~15 min). Demo-eve and demo day are exempt — leave everything up, destroy right after filming per `docs/destroy-checklist.md`. Log every destroy/rebuild in `docs/cost-log.md`.
+* Nightly rule (consecutive build days): keep the VPC stack (live: `duokart-02-vpc`, incl. NAT, ~$1/day) up all week; delete stacks built from `02`–`05` templates at each day end once they exist and rebuild next morning via Console (~15 min). Never resolve numbers by parsing a stack name — the Console stack list is source of truth. Demo-eve and demo day are exempt — leave everything up, destroy right after filming per `docs/destroy-checklist.md`. Log every destroy/rebuild in `docs/cost-log.md`.
 * Never create duplicate resources because of confusion or failed deployments.
 * Before adding a new AWS service, check cost, purpose, and whether it is already represented by another service.
 

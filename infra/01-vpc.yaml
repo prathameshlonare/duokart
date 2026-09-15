@@ -351,7 +351,7 @@ Resources:
           FromPort: 22
           ToPort: 22
           CidrIp: !Ref AdminSshCidr
-          Description: "Admin SSH only — never 0.0.0.0/0; key via Console, never git"
+          Description: "Admin SSH only - never 0.0.0.0/0; key via Console, never git"
       Tags:
         - Key: Name
           Value: !Sub "duokart-${EnvironmentName}-bastion-sg"
