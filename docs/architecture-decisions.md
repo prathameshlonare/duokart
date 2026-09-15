@@ -13,5 +13,6 @@
 | 2026-09-14 | Route53 real domain deferred; alias-to-ALB design doc-only | No $12-13 purchase for a temp stack; ALB DNS used in demo | p + s |
 
 | 2026-09-14 | Credit total corrected $130 → 170 credits (Billing → Credits) | Console shows 170; 3 docs said $130. Budget amount set to 170, alerts unchanged ($60 warn / $100 stop-and-destroy). Affected: `duokart-project.md`, `docs/day-0-setup.md`, `docs/cost-log.md` | s (Swapnil) — needs p sign in review |
+| 2026-09-15 | Budget interim: `duokart-cap` $10 only, keep as-is for Day-0 | Reason: Day-0 runs zero billable infra (EC2/RDS/ALB empty in us-east-2, verified 2026-09-15), so $10 trips earlier and is safer while screenshots recycle. Impact — cost: earlier alert, no overspend risk; security: none; implementation: must raise to $170 with $60 warn / $100 stop-and-destroy before Day-1 NAT burn starts. Affected: `docs/cost-log.md`, `docs/screenshots/day-0/budget-cap.png`. Extra `My Monthly Cost Budget $5.00` left untouched — ignore, single source of truth stays `duokart-cap`. | p (Prathamesh) — needs s sign (billing owner) |
 
 Add new rows for further change requests — never edit a signed row.
