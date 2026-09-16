@@ -20,12 +20,17 @@ Description: "DuoKart Day 2: ALB + EC2 Auto Scaling (compute tier)"
 Parameters:
   VpcStackName:
     Type: String
-    Default: duokart-01-vpc
+    Default: duokart-02-vpc
     Description: "Name of the Day-1 VPC stack to import resources from."
   EnvironmentName:
     Type: String
     Default: dev
     Description: "Tag value for Environment. Matches VPC stack setting."
+
+Mappings:
+  RegionAmiMap:
+    us-east-2:
+      UbuntuAmi: ami-0e5497a77ef21b5ac
 
 Resources:
   # ============================================================
@@ -39,10 +44,13 @@ Resources:
       Type: application
       IpAddressType: ipv4
       Subnets:
-        - !ImportValue "${VpcStackName}-PublicSubnet1Id"
-        - !ImportValue "${VpcStackName}-PublicSubnet2Id"
+        - Fn::ImportValue:
+            Fn::Sub: "${VpcStackName}-PublicSubnet1Id"
+        - Fn::ImportValue:
+            Fn::Sub: "${VpcStackName}-PublicSubnet2Id"
       SecurityGroups:
-        - !ImportValue "${VpcStackName}-AlbSgId"
+        - Fn::ImportValue:
+            Fn::Sub: "${VpcStackName}-AlbSgId"
       Tags:
         - Key: Name
           Value: !Sub "duokart-${EnvironmentName}-alb"
@@ -62,7 +70,9 @@ Resources:
       Name: !Sub "duokart-${EnvironmentName}-tg"
       Port: 5000
       Protocol: HTTP
-      VpcId: !ImportValue "${VpcStackName}-VpcId"
+      VpcId:
+        Fn::ImportValue:
+          Fn::Sub: "${VpcStackName}-VpcId"
       TargetType: instance
       HealthCheckEnabled: true
       HealthCheckPath: /health
@@ -100,6 +110,153 @@ Resources:
       DefaultActions:
         - Type: forward
           TargetGroupArn: !Ref AlbTargetGroup
+
+  # ============================================================
+  # IAM ROLE — EC2 instance profile (SSM + CloudWatch + S3 read)
+  # ============================================================
+  Ec2InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "duokart-${EnvironmentName}-ec2-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+        - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Tags:
+        - Key: Project
+          Value: DuoKart
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  Ec2InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+        - !Ref Ec2InstanceRole
+
+  # ============================================================
+  # LAUNCH TEMPLATE — Flask app on port 5000, user-data bootstrap
+  # ============================================================
+  AppLaunchTemplate:
+    Type: AWS::EC2::LaunchTemplate
+    Properties:
+      LaunchTemplateName: !Sub "duokart-${EnvironmentName}-lt"
+      LaunchTemplateData:
+        ImageId: !FindInMap [RegionAmiMap, !Ref "AWS::Region", UbuntuAmi]
+        InstanceType: t3.micro
+        IamInstanceProfile:
+          Arn: !GetAtt Ec2InstanceProfile.Arn
+        SecurityGroupIds:
+          - Fn::ImportValue:
+              Fn::Sub: "${VpcStackName}-AppSgId"
+        UserData:
+          Fn::Base64: |
+            #!/bin/bash
+            set -euxo pipefail
+
+            # System updates + Python
+            apt-get update -y
+            apt-get install -y python3 python3-pip python3-venv git
+
+            # Create app directory
+            mkdir -p /opt/duokart
+            cd /opt/duokart
+
+            # Clone app (swap this URL for your actual repo later)
+            git clone https://github.com/swapnilkumbhare04/duokart.git .
+
+            # Python venv + deps
+            python3 -m venv venv
+            source venv/bin/activate
+            pip install --upgrade pip
+            pip install flask gunicorn
+
+            # Install app-specific deps
+            if [ -f app/requirements.txt ]; then
+              pip install -r app/requirements.txt
+            fi
+
+            # Create systemd service for Flask
+            cat > /etc/systemd/system/duokart.service << 'EOF'
+            [Unit]
+            Description=DuoKart Flask App
+            After=network.target
+
+            [Service]
+            User=root
+            WorkingDirectory=/opt/duokart/app
+            ExecStart=/opt/duokart/venv/bin/gunicorn -w 2 -b 0.0.0.0:5000 app:app
+            Restart=always
+
+            [Install]
+            WantedBy=multi-user.target
+            EOF
+
+            systemctl daemon-reload
+            systemctl enable duokart
+            systemctl start duokart
+        TagSpecifications:
+          - ResourceType: instance
+            Tags:
+              - Key: Name
+                Value: !Sub "duokart-${EnvironmentName}-app"
+              - Key: Project
+                Value: DuoKart
+              - Key: Environment
+                Value: !Ref EnvironmentName
+              - Key: ManagedBy
+                Value: CloudFormation
+      TagSpecifications:
+        - ResourceType: launch-template
+          Tags:
+            - Key: Project
+              Value: DuoKart
+            - Key: ManagedBy
+              Value: CloudFormation
+
+  # ============================================================
+  # AUTO SCALING GROUP — 2 instances across both private subnets
+  # ============================================================
+  AppAutoScalingGroup:
+    Type: AWS::AutoScaling::AutoScalingGroup
+    Properties:
+      AutoScalingGroupName: !Sub "duokart-${EnvironmentName}-asg"
+      MinSize: "2"
+      MaxSize: "4"
+      DesiredCapacity: "2"
+      VPCZoneIdentifier:
+        - Fn::ImportValue:
+            Fn::Sub: "${VpcStackName}-PrivateSubnet1Id"
+        - Fn::ImportValue:
+            Fn::Sub: "${VpcStackName}-PrivateSubnet2Id"
+      LaunchTemplate:
+        LaunchTemplateId: !Ref AppLaunchTemplate
+        Version: !GetAtt AppLaunchTemplate.LatestVersionNumber
+      TargetGroupARNs:
+        - !Ref AlbTargetGroup
+      HealthCheckType: ELB
+      HealthCheckGracePeriod: 300
+      MetricsCollection:
+        - Granularity: "1Minute"
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-app"
+          PropagateAtLaunch: true
+        - Key: Project
+          Value: DuoKart
+          PropagateAtLaunch: true
+        - Key: Environment
+          Value: !Ref EnvironmentName
+          PropagateAtLaunch: true
+        - Key: ManagedBy
+          Value: CloudFormation
+          PropagateAtLaunch: true
 
 Outputs:
   AlbDnsName:
