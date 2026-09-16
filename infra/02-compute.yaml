@@ -20,7 +20,7 @@ Description: "DuoKart Day 2: ALB + EC2 Auto Scaling (compute tier)"
 Parameters:
   VpcStackName:
     Type: String
-    Default: duokart-02-vpc
+    Default: duokart-01-vpc
     Description: "Name of the Day-1 VPC stack to import resources from."
   EnvironmentName:
     Type: String
