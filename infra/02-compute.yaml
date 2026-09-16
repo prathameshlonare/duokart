@@ -1,0 +1,124 @@
+# DuoKart 02-compute — ALB + EC2 Auto Scaling (Day 2, Swapnil's ALB portion)
+#
+# Purpose: Internet-facing Application Load Balancer that distributes traffic
+# across EC2 instances in private subnets. Health checks hit /health on port 5000.
+#
+# Deploy: CloudFormation -> Create stack -> Upload this file -> stack name
+#   `duokart-02-compute` -> region us-east-2. Requires the Day-1 VPC stack
+#   (`duokart-01-vpc`) to already be running.
+#
+# Handoff: Swapnil builds ALB + Listener + Target Group. Prathamesh adds
+#   Launch Template + Auto Scaling Group after git pull.
+#
+# COST NOTE: ALB hours are ~$0.0225/hr (~$0.54/day). Kept up all week like
+#   the VPC to avoid daily reprovisioning. Destroy stack nightly only if
+#   budget is critical.
+
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "DuoKart Day 2: ALB + EC2 Auto Scaling (compute tier)"
+
+Parameters:
+  VpcStackName:
+    Type: String
+    Default: duokart-01-vpc
+    Description: "Name of the Day-1 VPC stack to import resources from."
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: "Tag value for Environment. Matches VPC stack setting."
+
+Resources:
+  # ============================================================
+  # APPLICATION LOAD BALANCER (internet-facing, public subnets)
+  # ============================================================
+  Alb:
+    Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+    Properties:
+      Name: !Sub "duokart-${EnvironmentName}-alb"
+      Scheme: internet-facing
+      Type: application
+      IpAddressType: ipv4
+      Subnets:
+        - !ImportValue "${VpcStackName}-PublicSubnet1Id"
+        - !ImportValue "${VpcStackName}-PublicSubnet2Id"
+      SecurityGroups:
+        - !ImportValue "${VpcStackName}-AlbSgId"
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-alb"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ============================================================
+  # TARGET GROUP (points to Flask app on port 5000)
+  # ============================================================
+  AlbTargetGroup:
+    Type: AWS::ElasticLoadBalancingV2::TargetGroup
+    Properties:
+      Name: !Sub "duokart-${EnvironmentName}-tg"
+      Port: 5000
+      Protocol: HTTP
+      VpcId: !ImportValue "${VpcStackName}-VpcId"
+      TargetType: instance
+      HealthCheckEnabled: true
+      HealthCheckPath: /health
+      HealthCheckProtocol: HTTP
+      HealthCheckIntervalSeconds: 30
+      HealthCheckTimeoutSeconds: 5
+      HealthyThresholdCount: 2
+      UnhealthyThresholdCount: 3
+      Matcher:
+        HttpCode: "200"
+      TargetGroupAttributes:
+        - Key: deregistration_delay.timeout_seconds
+          Value: "300"
+        - Key: stickiness.enabled
+          Value: "false"
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-tg"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ============================================================
+  # LISTENER (HTTP 80 -> forward to Target Group)
+  # ============================================================
+  AlbListener:
+    Type: AWS::ElasticLoadBalancingV2::Listener
+    Properties:
+      LoadBalancerArn: !Ref Alb
+      Port: 80
+      Protocol: HTTP
+      DefaultActions:
+        - Type: forward
+          TargetGroupArn: !Ref AlbTargetGroup
+
+Outputs:
+  AlbDnsName:
+    Description: "ALB DNS — point your browser here to test"
+    Value: !GetAtt Alb.DNSName
+    Export:
+      Name: !Sub "${AWS::StackName}-AlbDnsName"
+  AlbArn:
+    Description: "Full ALB ARN (for future HTTPS listener)"
+    Value: !Ref Alb
+    Export:
+      Name: !Sub "${AWS::StackName}-AlbArn"
+  AlbTargetGroupArn:
+    Description: "Target Group ARN — Prathamesh uses this in ASG launch template"
+    Value: !Ref AlbTargetGroup
+    Export:
+      Name: !Sub "${AWS::StackName}-TargetGroupArn"
+  AlbListenerArn:
+    Description: "Listener ARN (for future rule additions)"
+    Value: !Ref AlbListener
+    Export:
+      Name: !Sub "${AWS::StackName}-ListenerArn"
