@@ -11,4 +11,4 @@
 - Raw screenshots: _fill_
 
 ## Cost note after filming
-Run `docs/destroy-checklist.md` immediately; file billing screenshot in `docs/cost-log.md`.
+Run `docs/destroy-checklist.md` immediately to clean up all stacks.

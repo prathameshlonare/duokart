@@ -5,7 +5,7 @@ No CLI. All stacks created via Console: CloudFormation → Create stack → Uplo
 ## Order (numbered)
 1. `01-vpc.yaml` — VPC, 2 AZ subnets, IGW, 1 NAT, security groups (incl. bastion-sg). Live: running as stack `duokart-02-vpc` (retry 2026-09-15); Day-2 `Fn::ImportValue`s must use `duokart-02-vpc-*`. File numbering unchanged.
 2. `02-compute.yaml` — ALB + ASG + EC2 (IAM role, no keys). Live: running as stack `duokart-02-compute`.
-3. `03-data.yaml` — RDS MySQL Multi-AZ `db.t3.micro` (password from SSM; per 2026-09-15 diagram decision) + S3 buckets (photos versioned, bills versioned + Object Lock + lifecycle).
+3. `03-data.yaml` — RDS MySQL Multi-AZ `db.t3.micro` (password from SSM) + DB Subnet Group. Ready to build (Day 3).
 4. `04-queue.yaml` — SQS + Lambda + DynamoDB + SNS topics.
 5. `05-observe.yaml` — CloudWatch alarms + dashboard, CloudTrail, Budgets (or Budgets via Billing console).
 

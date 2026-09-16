@@ -1,6 +1,6 @@
 # API contracts — both sides build against this, no freelancing
 
-Frozen Day 0 (changes need `docs/architecture-decisions.md` row + both approve). Local base `http://localhost:5000`, AWS base = ALB DNS.
+Frozen Day 0 (changes need both to approve). Local base `http://localhost:5000`, AWS base = ALB DNS.
 
 ## HTTP endpoints (app)
 
