@@ -1,0 +1,128 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "DuoKart Day 3: RDS MySQL 8.0 Multi-AZ + SSM password store"
+
+Parameters:
+  VpcStackName:
+    Type: String
+    Default: duokart-01-vpc
+    Description: "Name of the VPC stack to import resources from."
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: "Tag value for Environment."
+  DBPassword:
+    Type: String
+    NoEcho: true
+    MinLength: 16
+    MaxLength: 128
+    Description: "Master password for RDS (16+ chars, paste in console only)."
+  DBName:
+    Type: String
+    Default: duokart
+    Description: "Name of the database to create."
+
+Resources:
+  # ============================================================
+  # DB SUBNET GROUP (private subnets from VPC stack)
+  # ============================================================
+  DBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: "Private subnets for RDS (no internet access)"
+      SubnetIds:
+        - Fn::ImportValue:
+            Fn::Sub: "${VpcStackName}-PrivateSubnet1Id"
+        - Fn::ImportValue:
+            Fn::Sub: "${VpcStackName}-PrivateSubnet2Id"
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-db-subnet-group"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ============================================================
+  # RDS MySQL 8.0 Multi-AZ
+  # ============================================================
+  DatabaseInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      DBInstanceIdentifier: !Sub "duokart-${EnvironmentName}-db"
+      DBInstanceClass: db.t3.micro
+      Engine: mysql
+      EngineVersion: "8.0.46"
+      AllocatedStorage: 20
+      MaxAllocatedStorage: 50
+      StorageType: gp2
+      StorageEncrypted: true
+      DBName: !Ref DBName
+      MasterUsername: admin
+      MasterUserPassword: !Ref DBPassword
+      MultiAZ: true
+      PubliclyAccessible: false
+      DBSubnetGroupName: !Ref DBSubnetGroup
+      VPCSecurityGroups:
+        - Fn::ImportValue:
+            Fn::Sub: "${VpcStackName}-DbSgId"
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: "03:00-04:00"
+      PreferredMaintenanceWindow: "sun:04:00-sun:05:00"
+      DeletionProtection: false
+      CopyTagsToSnapshot: true
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-db"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ============================================================
+  # SSM PARAMETERS — password locker + endpoint (dict format)
+  # ============================================================
+  DBPasswordParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /duokart/dev/db-password
+      Type: String
+      Value: !Ref DBPassword
+      Description: "RDS master password (app servers fetch at boot)"
+      Tags:
+        Project: DuoKart
+
+  DBEndpointParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /duokart/dev/db-endpoint
+      Type: String
+      Value: !GetAtt DatabaseInstance.Endpoint.Address
+      Description: "RDS hostname (app servers fetch at boot)"
+      Tags:
+        Project: DuoKart
+
+Outputs:
+  DBEndpoint:
+    Description: "RDS endpoint hostname"
+    Value: !GetAtt DatabaseInstance.Endpoint.Address
+    Export:
+      Name: !Sub "${AWS::StackName}-DBEndpoint"
+  DBPort:
+    Description: "RDS port"
+    Value: !GetAtt DatabaseInstance.Endpoint.Port
+    Export:
+      Name: !Sub "${AWS::StackName}-DBPort"
+  DBName:
+    Description: "Database name"
+    Value: !Ref DBName
+    Export:
+      Name: !Sub "${AWS::StackName}-DBName"
+  SSMPasswordName:
+    Description: "SSM parameter name for the password"
+    Value: /duokart/dev/db-password
+    Export:
+      Name: !Sub "${AWS::StackName}-SSMPasswordName"
