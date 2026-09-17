@@ -26,6 +26,10 @@ Parameters:
     Type: String
     Default: dev
     Description: "Tag value for Environment. Matches VPC stack setting."
+  DbStackName:
+    Type: String
+    Default: duokart-03-data
+    Description: "Name of Day 3 data stack to fetch DB endpoint from."
 
 Mappings:
   RegionAmiMap:
@@ -128,6 +132,16 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
         - arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy
+      Policies:
+        - PolicyName: FetchDbCreds
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:GetParameter
+                Resource:
+                  - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/duokart/dev/*"
       Tags:
         - Key: Project
           Value: DuoKart
@@ -160,30 +174,27 @@ Resources:
             #!/bin/bash
             set -euxo pipefail
 
-            # System updates + Python
             apt-get update -y
-            apt-get install -y python3 python3-pip python3-venv git
+            apt-get install -y python3 python3-pip python3-venv git awscli
 
-            # Create app directory
             mkdir -p /opt/duokart
             cd /opt/duokart
 
-            # Clone app (swap this URL for your actual repo later)
             git clone https://github.com/swapnilkumbhare04/duokart.git .
 
-            # Python venv + deps
             python3 -m venv venv
             source venv/bin/activate
             pip install --upgrade pip
             pip install flask gunicorn
 
-            # Install app-specific deps
             if [ -f app/requirements.txt ]; then
               pip install -r app/requirements.txt
             fi
 
-            # Create systemd service for Flask
-            cat > /etc/systemd/system/duokart.service << 'EOF'
+            DB_HOST=$(aws ssm get-parameter --region us-east-2 --name /duokart/dev/db-endpoint --query Parameter.Value --output text)
+            DB_PASSWORD=$(aws ssm get-parameter --region us-east-2 --name /duokart/dev/db-password --with-decryption --query Parameter.Value --output text)
+
+            cat > /etc/systemd/system/duokart.service << EOF
             [Unit]
             Description=DuoKart Flask App
             After=network.target
@@ -191,6 +202,11 @@ Resources:
             [Service]
             User=root
             WorkingDirectory=/opt/duokart/app
+            Environment="DB_HOST=$DB_HOST"
+            Environment="DB_PORT=3306"
+            Environment="DB_USER=admin"
+            Environment="DB_PASSWORD=$DB_PASSWORD"
+            Environment="DB_NAME=duokart"
             ExecStart=/opt/duokart/venv/bin/gunicorn -w 2 -b 0.0.0.0:5000 app:app
             Restart=always
 
