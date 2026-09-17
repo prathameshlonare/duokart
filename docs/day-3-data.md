@@ -11,9 +11,9 @@ Deploy Amazon RDS MySQL Multi-AZ database for DuoKart products, orders, and user
 
 ## Prerequisites
 
-- [ ] VPC stack `duokart-02-vpc` deployed and `CREATE_COMPLETE`
-- [ ] Compute stack `duokart-02-compute` deployed and `CREATE_COMPLETE`
-- [ ] Both contributors logged into AWS Console in `us-east-2`
+- [x] VPC stack `duokart-01-vpc` deployed and `CREATE_COMPLETE` (standardized 2026-09-17)
+- [x] Compute stack `duokart-02-compute` deployed and `CREATE_COMPLETE`
+- [x] Both contributors logged into AWS Console in `us-east-2`
 
 ---
 
@@ -122,32 +122,32 @@ Follow the pair programming handoff from `NEW-WORKFLOW.md`:
 ## 4. Verify the Deployment
 
 ### CloudFormation Verification
-- [ ] Stack Status = `CREATE_COMPLETE` (no `ROLLBACK` events)
-- [ ] Outputs tab shows:
+- [x] Stack Status = `CREATE_COMPLETE` (no `ROLLBACK` events)
+- [x] Outputs tab shows:
   - `DBEndpoint` (RDS endpoint URL)
   - `DBPort` (3306)
   - `DBName` (duokart)
   - `SSMParameterName` (/duokart/dev/db-password)
 
 ### RDS Console Verification
-- [ ] RDS → Databases → `duokart-dev-db` status = `Available`
-- [ ] Engine: MySQL 8.0.x
-- [ ] Instance class: `db.t3.micro`
-- [ ] Multi-AZ: Yes
-- [ ] Publicly accessible: No
-- [ ] VPC: DuoKart VPC
-- [ ] Subnet group: uses private subnets
+- [x] RDS → Databases → `duokart-dev-db` status = `Available`
+- [x] Engine: MySQL 8.0.x
+- [x] Instance class: `db.t3.micro`
+- [x] Multi-AZ: Yes
+- [x] Publicly accessible: No
+- [x] VPC: DuoKart VPC
+- [x] Subnet group: uses private subnets
 
 ### SSM Parameter Verification
-- [ ] SSM → Parameter Store → `/duokart/dev/db-password` exists
+- [x] SSM → Parameter Store → `/duokart/dev/db-password` exists
 - [ ] Type: SecureString
-- [ ] Value is encrypted (not visible in console)
+- [x] Value is encrypted (not visible in console)
 
 ### App Connection Test
-- [ ] Update `app/app.py` with RDS connection string
-- [ ] Restart Flask app: `sudo systemctl restart duokart`
-- [ ] Test endpoint: `curl http://<ALB-DNS>/health` returns 200
-- [ ] Test DB: `curl http://<ALB-DNS>/products` returns product list (or empty array)
+- [x] Update `app/app.py` with RDS connection string
+- [x] Restart Flask app: `sudo systemctl restart duokart`
+- [x] Test endpoint: `curl http://<ALB-DNS>/health` returns 200
+- [x] Test DB: `curl http://<ALB-DNS>/products` returns product list (or empty array)
 
 ---
 
@@ -319,25 +319,25 @@ Save screenshots to `docs/screenshots/day-3/` and push directly to `main`.
 
 ## 10. Definition of Done
 
-- [ ] `infra/03-data.yaml` written and YAML-validated locally
-- [ ] Template pushed directly to `main`
-- [ ] Stack deployed as `duokart-03-data` in `us-east-2`
-- [ ] Stack Status = `CREATE_COMPLETE`
-- [ ] RDS instance status = `Available`
-- [ ] SSM Parameter created and encrypted
-- [ ] App connects to RDS (health check returns 200)
-- [ ] 5 screenshots captured and committed
-- [ ] Troubleshooting notes filled (if issues encountered)
-- [ ] Cost impact documented
+- [x] `infra/03-data.yaml` written and YAML-validated locally
+- [x] Template pushed directly to `main`
+- [x] Stack deployed as `duokart-03-data` in `us-east-2`
+- [x] Stack Status = `CREATE_COMPLETE`
+- [x] RDS instance status = `Available`
+- [x] SSM Parameter created and encrypted
+- [x] App connects to RDS (health check returns 200)
+- [x] 5 screenshots captured and committed
+- [x] Troubleshooting notes filled (if issues encountered)
+- [x] Cost impact documented
 
 ---
 
 ## Day 4 Starting Point
 
-Storage tier: S3 buckets for photos and bills. See `docs/day-4-storage.md` (when created).
+Storage tier: S3 buckets for photos and bills. See `docs/day-4-storage.md`.
 
 **What you'll need from today:**
 - RDS endpoint (for app connection)
 - DB name and port (for app configuration)
-- VPC stack name: `duokart-02-vpc` (for S3 access via IAM)
+- VPC stack name: `duokart-01-vpc` (for S3 access via IAM)
 - App Security Group ID (already in use)
