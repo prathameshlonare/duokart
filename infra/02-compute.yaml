@@ -30,6 +30,10 @@ Parameters:
     Type: String
     Default: duokart-03-data
     Description: "Name of Day 3 data stack to fetch DB endpoint from."
+  StorageStackName:
+    Type: String
+    Default: duokart-04-storage
+    Description: "Name of Day 4 storage stack to fetch S3 bucket ARNs from."
 
 Mappings:
   RegionAmiMap:
@@ -142,6 +146,34 @@ Resources:
                   - ssm:GetParameter
                 Resource:
                   - !Sub "arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/duokart/dev/*"
+        - PolicyName: S3UploadAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  - Fn::ImportValue:
+                      Fn::Sub: "${StorageStackName}-PhotosBucketArn"
+                  - Fn::ImportValue:
+                      Fn::Sub: "${StorageStackName}-BillsBucketArn"
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                Resource:
+                  - Fn::Join:
+                      - ""
+                      - - Fn::ImportValue:
+                            Fn::Sub: "${StorageStackName}-PhotosBucketArn"
+                        - "/*"
+                  - Fn::Join:
+                      - ""
+                      - - Fn::ImportValue:
+                            Fn::Sub: "${StorageStackName}-BillsBucketArn"
+                        - "/*"
+
       Tags:
         - Key: Project
           Value: DuoKart
@@ -193,6 +225,8 @@ Resources:
 
             DB_HOST=$(aws ssm get-parameter --region us-east-2 --name /duokart/dev/db-endpoint --query Parameter.Value --output text)
             DB_PASSWORD=$(aws ssm get-parameter --region us-east-2 --name /duokart/dev/db-password --with-decryption --query Parameter.Value --output text)
+            S3_PHOTOS_BUCKET=$(aws ssm get-parameter --region us-east-2 --name /duokart/dev/s3-photos --query Parameter.Value --output text)
+            S3_BILLS_BUCKET=$(aws ssm get-parameter --region us-east-2 --name /duokart/dev/s3-bills --query Parameter.Value --output text)
 
             cat > /etc/systemd/system/duokart.service << EOF
             [Unit]
@@ -207,6 +241,9 @@ Resources:
             Environment="DB_USER=admin"
             Environment="DB_PASSWORD=$DB_PASSWORD"
             Environment="DB_NAME=duokart"
+            Environment="S3_PHOTOS_BUCKET=$S3_PHOTOS_BUCKET"
+            Environment="S3_BILLS_BUCKET=$S3_BILLS_BUCKET"
+            Environment="AWS_REGION=us-east-2"
             ExecStart=/opt/duokart/venv/bin/gunicorn -w 2 -b 0.0.0.0:5000 app:app
             Restart=always
 

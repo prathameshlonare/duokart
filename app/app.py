@@ -1,5 +1,6 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import os
+import boto3
 import pymysql
 from pymysql.cursors import DictCursor
 
@@ -10,6 +11,9 @@ DB_PORT = int(os.environ.get('DB_PORT', '3306'))
 DB_USER = os.environ.get('DB_USER', 'admin')
 DB_PASSWORD = os.environ.get('DB_PASSWORD', '')
 DB_NAME = os.environ.get('DB_NAME', 'duokart')
+S3_PHOTOS_BUCKET = os.environ.get('S3_PHOTOS_BUCKET', '')
+S3_BILLS_BUCKET = os.environ.get('S3_BILLS_BUCKET', '')
+AWS_REGION = os.environ.get('AWS_REGION', 'us-east-2')
 
 def get_db_connection():
     return pymysql.connect(
@@ -44,5 +48,30 @@ def get_products():
             products = cursor.fetchall()
         conn.close()
         return jsonify(products)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route('/uploads/url', methods=['POST'])
+def get_upload_url():
+    data = request.get_json(force=True, silent=True) or {}
+    kind = data.get('kind')
+    filename = data.get('filename')
+    if kind not in ('photo', 'bill'):
+        return jsonify({"error": "kind must be photo|bill"}), 400
+    if not filename:
+        return jsonify({"error": "filename required"}), 400
+    filename = str(filename).strip().lstrip('/').split('/')[-1]
+    if kind == 'photo':
+        bucket = S3_PHOTOS_BUCKET
+        key = f"photos/{filename}"
+    else:
+        bucket = S3_BILLS_BUCKET
+        key = f"bills/{filename}"
+    if not bucket:
+        return jsonify({"error": "bucket not configured"}), 500
+    try:
+        s3 = boto3.client('s3', region_name=AWS_REGION)
+        url = s3.generate_presigned_url('put_object', Params={'Bucket': bucket, 'Key': key}, ExpiresIn=900)
+        return jsonify({"uploadUrl": url, "key": key, "bucket": bucket})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
