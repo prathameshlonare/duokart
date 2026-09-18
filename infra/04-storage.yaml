@@ -1,0 +1,149 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "DuoKart Day 4: S3 photos bucket + locked bills bucket"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: "Tag value for Environment."
+  PhotosBucketName:
+    Type: String
+    Default: duokart-dev-photos-ps-18
+    Description: "Globally unique name for product photos bucket."
+  BillsBucketName:
+    Type: String
+    Default: duokart-dev-bills-ps-18
+    Description: "Globally unique name for bills bucket (Object Lock enabled)."
+
+Resources:
+  # ============================================================
+  # PHOTOS BUCKET (product images, versioned, no public access)
+  # ============================================================
+  PhotosBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref PhotosBucketName
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: MoveToIA
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: STANDARD_IA
+      CorsConfiguration:
+        CorsRules:
+          - AllowedOrigins: ["*"]
+            AllowedMethods: [PUT, POST, GET]
+            AllowedHeaders: ["*"]
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-photos"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ============================================================
+  # BILLS BUCKET (Object Lock Compliance 30 days)
+  # ============================================================
+  BillsBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      BucketName: !Ref BillsBucketName
+      ObjectLockEnabled: true
+      ObjectLockConfiguration:
+        ObjectLockEnabled: Enabled
+        Rule:
+          DefaultRetention:
+            Mode: COMPLIANCE
+            Days: 30
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-bills"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ============================================================
+  # SSM PARAMETERS — bucket names for app servers
+  # ============================================================
+  PhotosSSMParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /duokart/dev/s3-photos
+      Type: String
+      Value: !Ref PhotosBucketName
+      Description: "Photos bucket name (app servers fetch at boot)"
+      Tags:
+        Project: DuoKart
+
+  BillsSSMParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /duokart/dev/s3-bills
+      Type: String
+      Value: !Ref BillsBucketName
+      Description: "Bills bucket name (app servers fetch at boot)"
+      Tags:
+        Project: DuoKart
+
+Outputs:
+  PhotosBucketName:
+    Description: "Photos bucket name"
+    Value: !Ref PhotosBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-PhotosBucketName"
+  PhotosBucketArn:
+    Description: "Photos bucket ARN"
+    Value: !GetAtt PhotosBucket.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-PhotosBucketArn"
+  BillsBucketName:
+    Description: "Bills bucket name"
+    Value: !Ref BillsBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-BillsBucketName"
+  BillsBucketArn:
+    Description: "Bills bucket ARN"
+    Value: !GetAtt BillsBucket.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-BillsBucketArn"
+  PhotosSSMName:
+    Description: "SSM parameter name for photos bucket"
+    Value: /duokart/dev/s3-photos
+    Export:
+      Name: !Sub "${AWS::StackName}-PhotosSSMName"
+  BillsSSMName:
+    Description: "SSM parameter name for bills bucket"
+    Value: /duokart/dev/s3-bills
+    Export:
+      Name: !Sub "${AWS::StackName}-BillsSSMName"
