@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, request
 import os
 import boto3
+from botocore.config import Config
 import pymysql
 from pymysql.cursors import DictCursor
 
@@ -70,7 +71,8 @@ def get_upload_url():
     if not bucket:
         return jsonify({"error": "bucket not configured"}), 500
     try:
-        s3 = boto3.client('s3', region_name=AWS_REGION)
+        cfg = Config(signature_version='s3v4', s3={'addressing_style': 'virtual'})
+        s3 = boto3.client('s3', region_name='us-east-2', config=cfg)
         url = s3.generate_presigned_url('put_object', Params={'Bucket': bucket, 'Key': key}, ExpiresIn=900)
         return jsonify({"uploadUrl": url, "key": key, "bucket": bucket})
     except Exception as e:
