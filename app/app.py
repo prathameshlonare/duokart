@@ -3,6 +3,7 @@ import os
 import boto3
 from botocore.config import Config
 import pymysql
+import json
 from pymysql.cursors import DictCursor
 
 app = Flask(__name__)
@@ -15,6 +16,8 @@ DB_NAME = os.environ.get('DB_NAME', 'duokart')
 S3_PHOTOS_BUCKET = os.environ.get('S3_PHOTOS_BUCKET', '')
 S3_BILLS_BUCKET = os.environ.get('S3_BILLS_BUCKET', '')
 AWS_REGION = os.environ.get('AWS_REGION', 'us-east-2')
+SQS_QUEUE_URL = os.environ.get('SQS_QUEUE_URL', '')
+DDB_ORDERS_TABLE = os.environ.get('DDB_ORDERS_TABLE', 'duokart-orders')
 
 def get_db_connection():
     return pymysql.connect(
@@ -81,3 +84,51 @@ def get_upload_url():
         return jsonify({"uploadUrl": url, "key": key, "bucket": bucket})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+def _aws_order():
+    sqs = boto3.client('sqs', region_name='us-east-2')
+    ddb = boto3.client('dynamodb', region_name='us-east-2')
+    return sqs, ddb
+
+@app.route('/orders', methods=['POST'])
+def create_order():
+    data = request.get_json(force=True, silent=True) or {}
+    order_id = data.get('orderId')
+    items = data.get('items')
+    total = data.get('total')
+    if not order_id or not items or total is None:
+        return jsonify({"error": "INVALID", "message": "orderId/items/total required"}), 400
+    try:
+        calc = sum(int(i['qty']) * int(i['price']) for i in items)
+    except Exception:
+        return jsonify({"error": "INVALID", "message": "bad items"}), 400
+    if int(total) != calc:
+        return jsonify({"error": "TOTAL_MISMATCH", "message": "total != sum(qty*price)"}), 400
+    if not data.get('buyerEmail') or not data.get('paymentRef'):
+        return jsonify({"error": "INVALID", "message": "buyerEmail/paymentRef required"}), 400
+
+    sqs, ddb = _aws_order()
+    canon = json.dumps(data, sort_keys=True)
+    existing = ddb.get_item(TableName=DDB_ORDERS_TABLE, Key={'orderId': {'S': order_id}}).get('Item')
+    if existing:
+        # stored canon in 'payload' attr on first write below
+        if existing.get('payload', {}).get('S') == canon:
+            return jsonify({"orderId": order_id, "status": "RECEIVED"}), 202
+        return jsonify({"error": "CONFLICT", "message": "duplicate orderId different payload"}), 409
+
+    sqs.send_message(QueueUrl=SQS_QUEUE_URL, MessageBody=canon)
+    ddb.put_item(TableName=DDB_ORDERS_TABLE,
+        Item={'orderId': {'S': order_id}, 'status': {'S': 'RECEIVED'}, 'total': {'N': str(int(total))}, 'payload': {'S': canon}})
+    return jsonify({"orderId": order_id, "status": "RECEIVED"}), 202
+
+@app.route('/orders/<order_id>', methods=['GET'])
+def get_order(order_id):
+    _, ddb = _aws_order()
+    item = ddb.get_item(TableName=DDB_ORDERS_TABLE, Key={'orderId': {'S': order_id}}).get('Item')
+    if not item:
+        return jsonify({"error": "NOT_FOUND", "message": "unknown id"}), 404
+    return jsonify({
+        "orderId": order_id,
+        "status": item.get('status', {}).get('S', 'RECEIVED'),
+        "total": int(item.get('total', {}).get('N', '0'))
+    }), 200

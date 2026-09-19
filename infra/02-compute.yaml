@@ -34,6 +34,10 @@ Parameters:
     Type: String
     Default: duokart-04-storage
     Description: "Name of Day 4 storage stack to fetch S3 bucket ARNs from."
+  QueueStackName:
+    Type: String
+    Default: duokart-05-queue
+    Description: "Name of Day 5 queue stack to fetch SQS/Dynamo ARNs from."
 
 Mappings:
   RegionAmiMap:
@@ -173,7 +177,24 @@ Resources:
                       - - Fn::ImportValue:
                             Fn::Sub: "${StorageStackName}-BillsBucketArn"
                         - "/*"
-
+        - PolicyName: OrderApiAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:SendMessage
+                Resource:
+                  - Fn::ImportValue:
+                      Fn::Sub: "${QueueStackName}-OrdersQueueArn"
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:Query
+                Resource:
+                  - Fn::ImportValue:
+                      Fn::Sub: "${QueueStackName}-OrdersTableArn"
       Tags:
         - Key: Project
           Value: DuoKart
@@ -227,6 +248,8 @@ Resources:
             DB_PASSWORD=$(aws ssm get-parameter --region us-east-2 --name /duokart/dev/db-password --with-decryption --query Parameter.Value --output text)
             S3_PHOTOS_BUCKET=$(aws ssm get-parameter --region us-east-2 --name /duokart/dev/s3-photos --query Parameter.Value --output text)
             S3_BILLS_BUCKET=$(aws ssm get-parameter --region us-east-2 --name /duokart/dev/s3-bills --query Parameter.Value --output text)
+            SQS_QUEUE_URL=$(aws ssm get-parameter --region us-east-2 --name /duokart/dev/sqs-queue-url --query Parameter.Value --output text)
+            DDB_ORDERS_TABLE=$(aws ssm get-parameter --region us-east-2 --name /duokart/dev/ddb-orders-table --query Parameter.Value --output text)
 
             cat > /etc/systemd/system/duokart.service << EOF
             [Unit]
@@ -243,6 +266,8 @@ Resources:
             Environment="DB_NAME=duokart"
             Environment="S3_PHOTOS_BUCKET=$S3_PHOTOS_BUCKET"
             Environment="S3_BILLS_BUCKET=$S3_BILLS_BUCKET"
+            Environment="SQS_QUEUE_URL=$SQS_QUEUE_URL"
+            Environment="DDB_ORDERS_TABLE=$DDB_ORDERS_TABLE"
             Environment="AWS_REGION=us-east-2"
             ExecStart=/opt/duokart/venv/bin/gunicorn -w 2 -b 0.0.0.0:5000 app:app
             Restart=always
