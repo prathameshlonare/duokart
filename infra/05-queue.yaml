@@ -1,0 +1,347 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "DuoKart Day 5: SQS + DLQ + DynamoDB + SNS + Lambda order worker"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: "Tag value for Environment."
+  OrdersQueueName:
+    Type: String
+    Default: duokart-dev-orders
+    Description: "Name for the orders SQS queue."
+  OrdersDlqName:
+    Type: String
+    Default: duokart-dev-orders-dlq
+    Description: "Name for the dead letter queue."
+  OrdersTableName:
+    Type: String
+    Default: duokart-orders
+    Description: "DynamoDB table name (frozen contract, do not rename)."
+  BuyerTopicName:
+    Type: String
+    Default: duokart-dev-buyer
+    Description: "SNS topic for buyer notifications."
+  OwnerTopicName:
+    Type: String
+    Default: duokart-dev-owner
+    Description: "SNS topic for owner notifications."
+
+Resources:
+  # ============================================================
+  # DEAD LETTER QUEUE (terminal box, 14-day retention)
+  # ============================================================
+  DeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Ref OrdersDlqName
+      MessageRetentionPeriod: 1209600
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-dlq"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ============================================================
+  # ORDERS QUEUE (Standard, 4-day retention, redrive to DLQ)
+  # ============================================================
+  OrdersQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Ref OrdersQueueName
+      VisibilityTimeout: 60
+      MessageRetentionPeriod: 345600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt DeadLetterQueue.Arn
+        maxReceiveCount: 3
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-orders-queue"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ============================================================
+  # DYNAMODB TABLE (order status board, PK orderId)
+  # ============================================================
+  OrdersTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Ref OrdersTableName
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: orderId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: orderId
+          KeyType: HASH
+      PointInTimeRecoverySpecification:
+        PointInTimeRecoveryEnabled: true
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-orders-table"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ============================================================
+  # SNS TOPICS (buyer + owner notifications)
+  # ============================================================
+  BuyerTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Ref BuyerTopicName
+      Tags:
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  OwnerTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Ref OwnerTopicName
+      Tags:
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ============================================================
+  # LAMBDA WORKER ROLE (least privilege)
+  # ============================================================
+  LambdaWorkerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub "duokart-${EnvironmentName}-worker-role"
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: WorkerAccess
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sqs:ReceiveMessage
+                  - sqs:DeleteMessage
+                  - sqs:GetQueueAttributes
+                Resource:
+                  - !GetAtt OrdersQueue.Arn
+                  - !GetAtt DeadLetterQueue.Arn
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:Query
+                Resource: !GetAtt OrdersTable.Arn
+              - Effect: Allow
+                Action:
+                  - sns:Publish
+                Resource:
+                  - !Ref BuyerTopic
+                  - !Ref OwnerTopic
+      Tags:
+        - Key: Project
+          Value: DuoKart
+        - Key: ManagedBy
+          Value: CloudFormation
+
+  # ============================================================
+  # LAMBDA WORKER (Python 3.12, SQS trigger, batch 1)
+  # ============================================================
+  OrderWorker:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: !Sub "duokart-${EnvironmentName}-order-worker"
+      Runtime: python3.12
+      Handler: index.handler
+      Timeout: 30
+      MemorySize: 128
+      Role: !GetAtt LambdaWorkerRole.Arn
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref OrdersTable
+          BUYER_TOPIC_ARN: !Ref BuyerTopic
+          OWNER_TOPIC_ARN: !Ref OwnerTopic
+      Code:
+        ZipFile: |
+          import json, os, boto3
+          from datetime import datetime, timezone
+
+          ddb = boto3.client('dynamodb')
+          sns = boto3.client('sns')
+          TABLE = os.environ['TABLE_NAME']
+          BUYER = os.environ['BUYER_TOPIC_ARN']
+          OWNER = os.environ['OWNER_TOPIC_ARN']
+
+          def handler(event, context):
+              for record in event['Records']:
+                  body = json.loads(record['body'])
+                  order_id = body['orderId']
+
+                  # Conditional write: only RECEIVED -> PACKING (forward only)
+                  ddb.update_item(
+                      TableName=TABLE,
+                      Key={'orderId': {'S': order_id}},
+                      UpdateExpression='SET #st = :packing, #upd = :now',
+                      ConditionExpression='attribute_not_exists(orderId) OR #st = :received',
+                      ExpressionAttributeNames={'#st': 'status', '#upd': 'updatedAt'},
+                      ExpressionAttributeValues={
+                          ':packing': {'S': 'PACKING'},
+                          ':received': {'S': 'RECEIVED'},
+                          ':now': {'S': datetime.now(timezone.utc).isoformat()}
+                      }
+                  )
+
+                  # Notify buyer + owner
+                  msg = json.dumps({'orderId': order_id, 'status': 'PACKING', 'total': body.get('total', 0)})
+                  sns.publish(TopicArn=BUYER, Message=msg)
+                  sns.publish(TopicArn=OWNER, Message=msg)
+
+              return {'statusCode': 200}
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-order-worker"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ============================================================
+  # SQS TRIGGER (Lambda polls queue, batch size 1)
+  # ============================================================
+  LambdaSqsTrigger:
+    Type: AWS::Lambda::EventSourceMapping
+    Properties:
+      FunctionName: !Ref OrderWorker
+      EventSourceArn: !GetAtt OrdersQueue.Arn
+      BatchSize: 1
+      Enabled: true
+
+  # ============================================================
+  # SSM PARAMETERS (same pattern as DB/S3 — servers fetch at boot)
+  # ============================================================
+  QueueUrlParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /duokart/dev/sqs-queue-url
+      Type: String
+      Value: !Ref OrdersQueue
+      Description: "SQS queue URL (app server sends orders)"
+      Tags:
+        Project: DuoKart
+
+  QueueArnParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /duokart/dev/sqs-queue-arn
+      Type: String
+      Value: !GetAtt OrdersQueue.Arn
+      Description: "SQS queue ARN"
+      Tags:
+        Project: DuoKart
+
+  DynamoTableNameParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /duokart/dev/ddb-orders-table
+      Type: String
+      Value: !Ref OrdersTable
+      Description: "DynamoDB orders table name"
+      Tags:
+        Project: DuoKart
+
+  BuyerTopicArnParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /duokart/dev/sns-buyer
+      Type: String
+      Value: !Ref BuyerTopic
+      Description: "SNS buyer topic ARN"
+      Tags:
+        Project: DuoKart
+
+  OwnerTopicArnParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /duokart/dev/sns-owner
+      Type: String
+      Value: !Ref OwnerTopic
+      Description: "SNS owner topic ARN"
+      Tags:
+        Project: DuoKart
+
+Outputs:
+  OrdersQueueUrl:
+    Description: "SQS queue URL"
+    Value: !Ref OrdersQueue
+    Export:
+      Name: !Sub "${AWS::StackName}-OrdersQueueUrl"
+  OrdersQueueArn:
+    Description: "SQS queue ARN"
+    Value: !GetAtt OrdersQueue.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-OrdersQueueArn"
+  OrdersDlqArn:
+    Description: "DLQ ARN"
+    Value: !GetAtt DeadLetterQueue.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-OrdersDlqArn"
+  OrdersTableName:
+    Description: "DynamoDB table name"
+    Value: !Ref OrdersTable
+    Export:
+      Name: !Sub "${AWS::StackName}-OrdersTableName"
+  OrdersTableArn:
+    Description: "DynamoDB table ARN"
+    Value: !GetAtt OrdersTable.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-OrdersTableArn"
+  BuyerTopicArn:
+    Description: "SNS buyer topic ARN"
+    Value: !Ref BuyerTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-BuyerTopicArn"
+  OwnerTopicArn:
+    Description: "SNS owner topic ARN"
+    Value: !Ref OwnerTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-OwnerTopicArn"
+  QueueUrlSSMName:
+    Description: "SSM param for queue URL"
+    Value: /duokart/dev/sqs-queue-url
+    Export:
+      Name: !Sub "${AWS::StackName}-QueueUrlSSMName"
+  QueueArnSSMName:
+    Description: "SSM param for queue ARN"
+    Value: /duokart/dev/sqs-queue-arn
+    Export:
+      Name: !Sub "${AWS::StackName}-QueueArnSSMName"
+  DynamoTableNameSSMName:
+    Description: "SSM param for DynamoDB table"
+    Value: /duokart/dev/ddb-orders-table
+    Export:
+      Name: !Sub "${AWS::StackName}-DynamoTableNameSSMName"
+  BuyerTopicArnSSMName:
+    Description: "SSM param for buyer topic"
+    Value: /duokart/dev/sns-buyer
+    Export:
+      Name: !Sub "${AWS::StackName}-BuyerTopicArnSSMName"
+  OwnerTopicArnSSMName:
+    Description: "SSM param for owner topic"
+    Value: /duokart/dev/sns-owner
+    Export:
+      Name: !Sub "${AWS::StackName}-OwnerTopicArnSSMName"
