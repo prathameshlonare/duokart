@@ -62,7 +62,7 @@ def get_upload_url():
     if not filename:
         return jsonify({"error": "filename required"}), 400
     filename = str(filename).strip().lstrip('/').split('/')[-1]
-    checksum_sha256 = data.get('checksumSha256')  # base64, required for bill
+    checksum_sha256 = data.get('checksumSha256')  # optional, no Object Lock now
     if kind == 'photo':
         bucket = S3_PHOTOS_BUCKET
         key = f"photos/{filename}"
@@ -75,9 +75,7 @@ def get_upload_url():
         cfg = Config(signature_version='s3v4', s3={'addressing_style': 'virtual'})
         s3 = boto3.client('s3', region_name='us-east-2', config=cfg)
         params = {'Bucket': bucket, 'Key': key}
-        if kind == 'bill':
-            if not checksum_sha256:
-                return jsonify({"error": "checksumSha256 required for bill (Object Lock)"}), 400
+        if kind == 'bill' and checksum_sha256:
             params['ChecksumSHA256'] = checksum_sha256
         url = s3.generate_presigned_url('put_object', Params=params, ExpiresIn=900)
         return jsonify({"uploadUrl": url, "key": key, "bucket": bucket})
