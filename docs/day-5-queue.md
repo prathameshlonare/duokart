@@ -11,12 +11,12 @@ Decouple order-taking from order-processing so the site stays up in festival rus
 
 ## Prerequisites
 
-- [ ] VPC stack `duokart-01-vpc` is `CREATE_COMPLETE` (kept up)
-- [ ] Storage stack `duokart-04-storage` is `CREATE_COMPLETE` (kept up — NOT deleted, see gotcha below)
-- [ ] Compute stack `duokart-02-compute` is `CREATE_COMPLETE` (fresh morning rebuild, with Day 4 S3 auto-fetch UserData)
-- [ ] Data stack `duokart-03-data` is `CREATE_COMPLETE`, RDS `Available`, `/products` returns Neem Soap (fresh morning rebuild)
-- [ ] Both contributors logged into AWS Console in `us-east-2`
-- [ ] Morning rebuild done (~15 mins): re-upload `02-compute`, then `03-data` with fresh DB password (systemd-safe set, no `% $ " ' \`), refresh ASG, check `/health connected` — `04-storage` untouched, verify its SSM `/duokart/dev/s3-photos` + `/duokart/dev/s3-bills` params still resolve
+- [x] VPC stack `duokart-01-vpc` is `CREATE_COMPLETE` (kept up)
+- [x] Storage stack `duokart-04-storage` is `CREATE_COMPLETE` (kept up — NOT deleted, see gotcha below)
+- [x] Compute stack `duokart-02-compute` is `CREATE_COMPLETE` (fresh morning rebuild, with Day 4 S3 auto-fetch UserData)
+- [x] Data stack `duokart-03-data` is `CREATE_COMPLETE`, RDS `Available`, `/products` returns Neem Soap (fresh morning rebuild)
+- [x] Both contributors logged into AWS Console in `us-east-2`
+- [x] Morning rebuild done (~15 mins): re-upload `02-compute`, then `03-data` with fresh DB password (systemd-safe set, no `% $ " ' \`), refresh ASG, check `/health connected` — `04-storage` untouched, verify its SSM `/duokart/dev/s3-photos` + `/duokart/dev/s3-bills` params still resolve
 
 ### Morning gotcha — storage KEPT, not rebuilt (retention decision)
 
@@ -150,26 +150,26 @@ Follow the pair programming handoff from `NEW-WORKFLOW.md`:
 
 ### CloudFormation Verification
 
-- [ ] Stack Status = `CREATE_COMPLETE` (no `ROLLBACK` events)
-- [ ] Outputs tab shows queue URL/ARN, table name/ARN, both topic ARNs
+- [x] Stack Status = `CREATE_COMPLETE` (no `ROLLBACK` events)
+- [x] Outputs tab shows queue URL/ARN, table name/ARN, both topic ARNs
 
 ### Console Verification
 
-- [ ] SQS → `duokart-dev-orders-*` exists, RedrivePolicy shows DLQ + maxReceiveCount 3
-- [ ] SQS → DLQ exists
-- [ ] DynamoDB → `duokart-orders` exists, key `orderId` (S), billing on-demand
-- [ ] SNS → both topics exist, subscriptions `Confirmed` (after inbox clicks)
-- [ ] Lambda → worker exists, trigger SQS `Enabled`, last invocation `Succeeded` after first test order
-- [ ] SSM → all 5 params exist with correct values
+- [x] SQS → `duokart-dev-orders-*` exists, RedrivePolicy shows DLQ + maxReceiveCount 3
+- [x] SQS → DLQ exists
+- [x] DynamoDB → `duokart-orders` exists, key `orderId` (S), billing on-demand
+- [x] SNS → both topics exist, subscriptions `Confirmed` (after inbox clicks)
+- [x] Lambda → worker exists, trigger SQS `Enabled`, last invocation `Succeeded` after first test order
+- [x] SSM → all 5 params exist with correct values (app fetched them at boot — E2E green)
 
 ### App Order Test (Turn 2)
 
-- [ ] `POST http://<ALB-DNS>/orders` valid `OrderCreated` → `202 {"orderId","status":"RECEIVED"}`
-- [ ] Re-POST identical body → `202` same id (idempotent)
-- [ ] Same `orderId` changed payload → `409`
-- [ ] `total` ≠ sum(qty×price) → `400`
-- [ ] `GET /orders/<id>` → `200` with `RECEIVED` then `PACKING` after worker (~5-15s), never backward
-- [ ] Buyer + owner mails arrive (SNS)
+- [x] `POST http://<ALB-DNS>/orders` valid `OrderCreated` → `202 {"orderId","status":"RECEIVED"}` (`ord-000046/48`, `temp.txt` + `e2e-1.png`)
+- [x] Re-POST identical body → `202` same id (idempotent)
+- [x] Same `orderId` changed payload → `409` (`e2e-2.png`)
+- [x] `total` ≠ sum(qty×price) → `400` (`e2e-3.png`)
+- [x] `GET /orders/<id>` → `200` with `RECEIVED` then `PACKING` after worker (~5-15s), never backward (`ord-000042/46/48`)
+- [x] Buyer + owner mails arrive (SNS) (`order-e2e-mail_2.png` — owner `ord-000048` after delay, see troubleshooting)
 - [ ] Bad payload ×3 → message lands in DLQ, site still `200` on new orders (queue buffers)
 
 ---
@@ -250,6 +250,8 @@ Nothing new — `boto3` already there from Day 4. Worker needs no new lib.
 **Root cause:** SNS subscriptions still `PendingConfirmation` (inbox link not clicked) — publish succeeds silently.
 **Solution:** SNS → topic → Subscriptions → check `Confirmed`. Resend confirmation, click link, retest. Never hardcode emails in template to "fix" this.
 
+**Night lesson (2026-09-19, `ord-000045`):** owner mail missing while buyer mail + manual owner publish both worked. Cause was delayed delivery / confirm propagation, not the template — mail arrived ~minutes later, and Lambda publishes with no `Subject` so Gmail may file it under Spam/Promotions. Checklist before debugging code: (1) both subs `Confirmed`, (2) owner Spam/Junk for `no-reply@sns.amazonaws.com`, (3) Lambda env `OWNER_TOPIC_ARN` vs stack Output match, (4) CloudWatch Logs for `sns:Publish` deny. Proof: `docs/screenshots/day-5/order-e2e-mail_2.png`.
+
 ---
 
 ## 7. Evidence Required
@@ -296,20 +298,20 @@ Save to `docs/screenshots/day-5/` and push directly to `main`.
 
 ## 10. Definition of Done
 
-- [ ] `infra/05-queue.yaml` written and YAML-validated locally
-- [ ] Template pushed directly to `main`
-- [ ] Stack deployed as `duokart-05-queue` in `us-east-2`
-- [ ] Stack Status = `CREATE_COMPLETE`
-- [ ] SQS redrive 3× → DLQ verified in console
-- [ ] DynamoDB `duokart-orders` PK `orderId` on-demand verified
-- [ ] Lambda SQS trigger `Enabled`, last run `Succeeded`
-- [ ] App `POST /orders` 202 / idempotent-202 / 409 / 400 per contract
-- [ ] `GET /orders/:id` moves RECEIVED → PACKING, never backward
-- [ ] Buyer + owner mails arrive (subscriptions Confirmed)
+- [x] `infra/05-queue.yaml` written and YAML-validated locally
+- [x] Template pushed directly to `main`
+- [x] Stack deployed as `duokart-05-queue` in `us-east-2`
+- [x] Stack Status = `CREATE_COMPLETE`
+- [x] SQS redrive 3× → DLQ verified in console
+- [x] DynamoDB `duokart-orders` PK `orderId` on-demand verified
+- [x] Lambda SQS trigger `Enabled`, last run `Succeeded`
+- [x] App `POST /orders` 202 / idempotent-202 / 409 / 400 per contract
+- [x] `GET /orders/:id` moves RECEIVED → PACKING, never backward
+- [x] Buyer + owner mails arrive (subscriptions Confirmed)
 - [ ] Day 4 endpoints still green (`/health connected`, `/products Neem Soap`, presigned photo + bill)
-- [ ] 5 screenshots captured and committed
-- [ ] Troubleshooting notes filled
-- [ ] Cost impact documented
+- [x] 5 screenshots captured and committed (`aca7d6d` + `00530ab`)
+- [x] Troubleshooting notes filled (owner-mail delay lesson, §6)
+- [x] Cost impact documented
 
 ---
 

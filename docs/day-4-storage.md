@@ -11,11 +11,11 @@ Deploy two S3 buckets for DuoKart uploads: photos (product images) and bills (pa
 
 ## Prerequisites
 
-- [ ] VPC stack `duokart-01-vpc` is `CREATE_COMPLETE`
-- [ ] Compute stack `duokart-02-compute` is `CREATE_COMPLETE` (with Day 3 auto-fetch UserData)
-- [ ] Data stack `duokart-03-data` is `CREATE_COMPLETE`, RDS `Available`
-- [ ] Both contributors logged into AWS Console in `us-east-2`
-- [ ] Morning rebuild done (~15 mins): re-upload `02-compute`, then `03-data` with fresh DB password, refresh ASG, check `/health` returns `connected`
+- [x] VPC stack `duokart-01-vpc` is `CREATE_COMPLETE`
+- [x] Compute stack `duokart-02-compute` is `CREATE_COMPLETE` (with Day 3 auto-fetch UserData)
+- [x] Data stack `duokart-03-data` is `CREATE_COMPLETE`, RDS `Available`
+- [x] Both contributors logged into AWS Console in `us-east-2`
+- [x] Morning rebuild done (~15 mins): re-upload `02-compute`, then `03-data` with fresh DB password, refresh ASG, check `/health` returns `connected`
 
 ---
 
@@ -107,27 +107,27 @@ Follow the pair programming handoff from `NEW-WORKFLOW.md`:
 ## 4. Verify the Deployment
 
 ### CloudFormation Verification
-- [ ] Stack Status = `CREATE_COMPLETE` (no `ROLLBACK` events)
-- [ ] Outputs tab shows:
+- [x] Stack Status = `CREATE_COMPLETE` (no `ROLLBACK` events)
+- [x] Outputs tab shows:
   - `PhotosBucketName` + `PhotosBucketArn`
   - `BillsBucketName` + `BillsBucketArn`
 
 ### S3 Console Verification
-- [ ] S3 → Buckets → photos bucket exists, Region `us-east-2`
-- [ ] Photos → Properties → Versioning = Enabled
-- [ ] Photos → Permissions → Block public access = On (all 4 on)
-- [ ] Photos → Properties → Lifecycle rules exist
-- [ ] S3 → Bills bucket exists
-- [ ] Bills → Properties → Versioning = Enabled
-- [ ] Bills → Properties → Object Lock = Enabled, Default retention Compliance 30 days
-- [ ] Bills → Permissions → Block public access = On
+- [x] S3 → Buckets → photos bucket exists, Region `us-east-2`
+- [x] Photos → Properties → Versioning = Enabled
+- [x] Photos → Permissions → Block public access = On (all 4 on)
+- [x] Photos → Properties → Lifecycle rules exist
+- [x] S3 → Bills bucket exists
+- [x] Bills → Properties → Versioning = Enabled
+- [x] Bills → no Object Lock (`ps-19` dev decision: `DeletionPolicy: Delete` — Compliance lock dropped for nightly cleanup, `8148bde`; old `ps-18` locked bucket left as orphan)
+- [x] Bills → Permissions → Block public access = On
 
 ### App Presigned Test
-- [ ] `POST http://<ALB-DNS>/uploads/url` with `{"kind":"photo","filename":"test.txt"}` returns 200 with `uploadUrl` + `key`
-- [ ] `curl -X PUT --data-binary @test.txt "<uploadUrl>"` returns 200
-- [ ] S3 console shows object under `photos/test.txt` (or `key` returned)
-- [ ] Same test with `{"kind":"bill",...}` lands in bills bucket
-- [ ] `{"kind":"bad"}` returns 400
+- [x] `POST http://<ALB-DNS>/uploads/url` with `{"kind":"photo","filename":"test.txt"}` returns 200 with `uploadUrl` + `key`
+- [x] `curl -X PUT --data-binary @test.txt "<uploadUrl>"` returns 200
+- [x] S3 console shows object under `photos/test.txt` (or `key` returned)
+- [x] Same test with `{"kind":"bill",...}` lands in bills bucket
+- [x] `{"kind":"bad"}` returns 400
 
 ---
 
@@ -254,17 +254,17 @@ Save to `docs/screenshots/day-4/` and push directly to `main`.
 
 ## 10. Definition of Done
 
-- [ ] `infra/04-storage.yaml` written and YAML-validated locally
-- [ ] Template pushed directly to `main`
-- [ ] Stack deployed as `duokart-04-storage` in `us-east-2`
-- [ ] Stack Status = `CREATE_COMPLETE`
-- [ ] Photos versioning + lifecycle on, public blocked
-- [ ] Bills Object Lock enabled + compliance retention
-- [ ] App `POST /uploads/url` returns presigned for both kinds, 400 on bad kind
-- [ ] PUT to presigned URL lands object in correct bucket
-- [ ] 5 screenshots captured and committed
-- [ ] Troubleshooting notes filled (especially bucket name collisions)
-- [ ] Cost impact documented
+- [x] `infra/04-storage.yaml` written and YAML-validated locally
+- [x] Template pushed directly to `main`
+- [x] Stack deployed as `duokart-04-storage` in `us-east-2`
+- [x] Stack Status = `CREATE_COMPLETE`
+- [x] Photos versioning + lifecycle on, public blocked
+- [x] Bills bucket `Delete` policy, no lock (`ps-19` — Compliance lock dropped, see `8148bde`)
+- [x] App `POST /uploads/url` returns presigned for both kinds, 400 on bad kind
+- [x] PUT to presigned URL lands object in correct bucket
+- [x] 5 screenshots captured and committed (`78fd935`)
+- [x] Troubleshooting notes filled (especially bucket name collisions)
+- [x] Cost impact documented
 
 ---
 
