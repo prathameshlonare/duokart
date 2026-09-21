@@ -1,0 +1,514 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: "DuoKart Day 6: CloudWatch alarms + dashboard + CloudTrail + budget"
+
+Parameters:
+  EnvironmentName:
+    Type: String
+    Default: dev
+    Description: "Tag value for Environment."
+  QueueStackName:
+    Type: String
+    Default: duokart-05-queue
+    Description: "Queue stack for SQS/DDB ARN imports."
+  TrailBucketName:
+    Type: String
+    Default: duokart-dev-trail-ps-20
+    Description: "S3 bucket name for CloudTrail logs. Bump suffix on BucketAlreadyExists."
+  BudgetLimitDollars:
+    Type: Number
+    Default: 20
+    Description: "Monthly cost budget limit in USD."
+  AlarmEmail:
+    Type: String
+    NoEcho: true
+    Description: "Shared alarm email for budget notifications and manual SNS subscription."
+  AlbShortName:
+    Type: String
+    Description: "ALB short name for dashboard. Get from console: ALB → DNS name prefix."
+  TgShortName:
+    Type: String
+    Description: "Target Group short name for dashboard. Get from console: TG name."
+  RdsInstanceId:
+    Type: String
+    Default: duokart-dev-db
+    Description: "RDS DB instance identifier."
+  OrdersQueueName:
+    Type: String
+    Default: duokart-dev-orders
+    Description: "SQS orders queue name for dashboard."
+  OrdersDlqName:
+    Type: String
+    Default: duokart-dev-orders-dlq
+    Description: "SQS DLQ name for dashboard."
+  WorkerFunctionName:
+    Type: String
+    Default: duokart-dev-order-worker
+    Description: "Lambda worker function name for dashboard."
+  OrdersTableName:
+    Type: String
+    Default: duokart-orders
+    Description: "DynamoDB orders table name for dashboard."
+
+Resources:
+  # ============================================================
+  # SNS ALARM TOPIC (no subscriptions in template — manual after)
+  # ============================================================
+  AlarmTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub "duokart-${EnvironmentName}-alarms"
+      Tags:
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ============================================================
+  # CLOUDWATCH ALARMS (8 total — all route to alarm topic)
+  # ============================================================
+
+  # 1 — ALB 5xx (fire, not noise)
+  Alb5xxAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "duokart-${EnvironmentName}-alb-5xx"
+      AlarmDescription: "Target 5xx responses > 10 in 5 min"
+      Namespace: AWS/ApplicationELB
+      MetricName: HTTPCode_Target_5XX_Count
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !Ref AlbShortName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 10
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: missing
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # 2 — ALB unhealthy hosts
+  AlbUnhealthyAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "duokart-${EnvironmentName}-alb-unhealthy"
+      AlarmDescription: "Unhealthy host count > 0 for 2 min"
+      Namespace: AWS/ApplicationELB
+      MetricName: UnHealthyHostCount
+      Dimensions:
+        - Name: LoadBalancer
+          Value: !Ref AlbShortName
+        - Name: TargetGroup
+          Value: !Ref TgShortName
+      Statistic: Average
+      Period: 60
+      EvaluationPeriods: 2
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: missing
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # 3 — RDS CPU sustained high
+  RdsCpuAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "duokart-${EnvironmentName}-rds-cpu"
+      AlarmDescription: "RDS CPU > 80% for 15 min"
+      Namespace: AWS/RDS
+      MetricName: CPUUtilization
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref RdsInstanceId
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 3
+      Threshold: 80
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: missing
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # 4 — RDS storage low
+  RdsStorageAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "duokart-${EnvironmentName}-rds-storage"
+      AlarmDescription: "RDS free storage < 5 GB"
+      Namespace: AWS/RDS
+      MetricName: FreeStorageSpace
+      Dimensions:
+        - Name: DBInstanceIdentifier
+          Value: !Ref RdsInstanceId
+      Statistic: Average
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 5368709120
+      ComparisonOperator: LessThanThreshold
+      TreatMissingData: missing
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # 5 — SQS queue age (worker dead/stuck)
+  SqsAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "duokart-${EnvironmentName}-sqs-age"
+      AlarmDescription: "Oldest order message > 300 s"
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !Select [5, !Split [':', {"Fn::ImportValue": {"Fn::Sub": "${QueueStackName}-OrdersQueueArn"}}]]
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 300
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: missing
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # 6 — DLQ depth (THE money alarm)
+  DlqDepthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "duokart-${EnvironmentName}-dlq-depth"
+      AlarmDescription: "Poison order detected in DLQ"
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !Select [5, !Split [':', {"Fn::ImportValue": {"Fn::Sub": "${QueueStackName}-OrdersDlqArn"}}]]
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # 7 — Lambda worker errors
+  WorkerErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "duokart-${EnvironmentName}-worker-errors"
+      AlarmDescription: "Lambda worker threw an error"
+      Namespace: AWS/Lambda
+      MetricName: Errors
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref WorkerFunctionName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: missing
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # 8 — DynamoDB throttles
+  DdbThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub "duokart-${EnvironmentName}-ddb-throttle"
+      AlarmDescription: "DynamoDB throttled requests on orders table"
+      Namespace: AWS/DynamoDB
+      MetricName: ThrottledRequests
+      Dimensions:
+        - Name: TableName
+          Value: !Ref OrdersTableName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: missing
+      AlarmActions:
+        - !Ref AlarmTopic
+      OKActions:
+        - !Ref AlarmTopic
+
+  # ============================================================
+  # CLOUDWATCH DASHBOARD (one-screen control room)
+  # ============================================================
+  Dashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: !Sub "duokart-${EnvironmentName}"
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "text",
+              "x": 0, "y": 0, "width": 24, "height": 1,
+              "properties": { "markdown": "# DuoKart Dev Dashboard" }
+            },
+            {
+              "type": "metric",
+              "x": 0, "y": 1, "width": 12, "height": 6,
+              "properties": {
+                "title": "ALB — Requests & Errors",
+                "metrics": [
+                  [ "AWS/ApplicationELB", "RequestCount", "LoadBalancer", "${AlbShortName}", { "stat": "Sum", "label": "Requests" } ],
+                  [ "AWS/ApplicationELB", "HTTPCode_Target_5XX_Count", "LoadBalancer", "${AlbShortName}", { "stat": "Sum", "label": "5xx Errors" } ]
+                ],
+                "period": 300, "region": "${AWS::Region}", "view": "timeSeries"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12, "y": 1, "width": 12, "height": 6,
+              "properties": {
+                "title": "ALB — Host Health",
+                "metrics": [
+                  [ "AWS/ApplicationELB", "HealthyHostCount", "LoadBalancer", "${AlbShortName}", "TargetGroup", "${TgShortName}", { "stat": "Average", "label": "Healthy" } ],
+                  [ "AWS/ApplicationELB", "UnHealthyHostCount", "LoadBalancer", "${AlbShortName}", "TargetGroup", "${TgShortName}", { "stat": "Average", "label": "Unhealthy" } ]
+                ],
+                "period": 60, "region": "${AWS::Region}", "view": "timeSeries"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0, "y": 7, "width": 8, "height": 6,
+              "properties": {
+                "title": "RDS — CPU & Connections",
+                "metrics": [
+                  [ "AWS/RDS", "CPUUtilization", "DBInstanceIdentifier", "${RdsInstanceId}", { "stat": "Average", "label": "CPU %" } ],
+                  [ "AWS/RDS", "DatabaseConnections", "DBInstanceIdentifier", "${RdsInstanceId}", { "stat": "Average", "label": "Connections" } ]
+                ],
+                "period": 300, "region": "${AWS::Region}", "view": "timeSeries"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 8, "y": 7, "width": 8, "height": 6,
+              "properties": {
+                "title": "RDS — Free Storage",
+                "metrics": [
+                  [ "AWS/RDS", "FreeStorageSpace", "DBInstanceIdentifier", "${RdsInstanceId}", { "stat": "Average", "label": "Free Bytes" } ]
+                ],
+                "period": 300, "region": "${AWS::Region}", "view": "timeSeries"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 16, "y": 7, "width": 8, "height": 6,
+              "properties": {
+                "title": "SQS — Orders Queue",
+                "metrics": [
+                  [ "AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", "${OrdersQueueName}", { "stat": "Average", "label": "Visible" } ],
+                  [ "AWS/SQS", "ApproximateAgeOfOldestMessage", "QueueName", "${OrdersQueueName}", { "stat": "Maximum", "label": "Oldest Age (s)" } ]
+                ],
+                "period": 300, "region": "${AWS::Region}", "view": "timeSeries"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 0, "y": 13, "width": 8, "height": 6,
+              "properties": {
+                "title": "DLQ — Poison Orders",
+                "metrics": [
+                  [ "AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", "${OrdersDlqName}", { "stat": "Sum", "label": "Visible" } ]
+                ],
+                "period": 300, "region": "${AWS::Region}", "view": "timeSeries"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 8, "y": 13, "width": 8, "height": 6,
+              "properties": {
+                "title": "Lambda — Order Worker",
+                "metrics": [
+                  [ "AWS/Lambda", "Invocations", "FunctionName", "${WorkerFunctionName}", { "stat": "Sum", "label": "Invocations" } ],
+                  [ "AWS/Lambda", "Errors", "FunctionName", "${WorkerFunctionName}", { "stat": "Sum", "label": "Errors" } ],
+                  [ "AWS/Lambda", "Duration", "FunctionName", "${WorkerFunctionName}", { "stat": "Average", "label": "Avg Duration (ms)" } ]
+                ],
+                "period": 300, "region": "${AWS::Region}", "view": "timeSeries"
+              }
+            },
+            {
+              "type": "metric",
+              "x": 16, "y": 13, "width": 8, "height": 6,
+              "properties": {
+                "title": "DynamoDB — Orders Table",
+                "metrics": [
+                  [ "AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "${OrdersTableName}", { "stat": "Sum", "label": "Reads" } ],
+                  [ "AWS/DynamoDB", "ConsumedWriteCapacityUnits", "TableName", "${OrdersTableName}", { "stat": "Sum", "label": "Writes" } ],
+                  [ "AWS/DynamoDB", "ThrottledRequests", "TableName", "${OrdersTableName}", { "stat": "Sum", "label": "Throttles" } ]
+                ],
+                "period": 300, "region": "${AWS::Region}", "view": "timeSeries"
+              }
+            },
+            {
+              "type": "text",
+              "x": 0, "y": 19, "width": 24, "height": 3,
+              "properties": {
+                "markdown": "## Quick Runbook\n- **DLQ alarm → ALARM:** Poison order in DLQ. Console → SQS → DLQ → Start DLQ Redrive or Purge. Alarm returns to OK.\n- **5xx spike:** Check `/health`, instance logs via SSM, or ASG instance refresh status.\n- **RDS CPU high:** Check slow queries in CloudWatch Logs, connection leaks.\n- **SQS age high:** Worker stuck or crashed. Check Lambda `/aws/lambda/duokart-dev-order-worker` logs."
+              }
+            }
+          ]
+        }
+
+  # ============================================================
+  # CLOUDTRAIL — S3 BUCKET (CCTV footage lands here)
+  # ============================================================
+  TrailBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketName: !Ref TrailBucketName
+      VersioningConfiguration:
+        Status: Enabled
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireLogs
+            Status: Enabled
+            ExpirationInDays: 90
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      Tags:
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  TrailBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref TrailBucket
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Sid: AWSCloudTrailAclCheck
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:GetBucketAcl
+            Resource: !GetAtt TrailBucket.Arn
+          - Sid: AWSCloudTrailWrite
+            Effect: Allow
+            Principal:
+              Service: cloudtrail.amazonaws.com
+            Action: s3:PutObject
+            Resource: !Sub "${TrailBucket.Arn}/AWSLogs/${AWS::AccountId}/*"
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: bucket-owner-full-control
+
+  # ============================================================
+  # CLOUDTRAIL — TRAIL (who touched what)
+  # ============================================================
+  CloudTrail:
+    Type: AWS::CloudTrail::Trail
+    DependsOn: TrailBucketPolicy
+    Properties:
+      TrailName: !Sub "duokart-${EnvironmentName}-trail"
+      S3BucketName: !Ref TrailBucket
+      IsLogging: true
+      IsMultiRegionTrail: false
+      EnableLogFileValidation: true
+      EventSelectors:
+        - ReadWriteType: All
+          IncludeManagementEvents: true
+      Tags:
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+
+  # ============================================================
+  # BUDGET (wallet guard — $20/month)
+  # ============================================================
+  MonthlyBudget:
+    Type: AWS::Budgets::Budget
+    Properties:
+      Budget:
+        BudgetName: !Sub "duokart-${EnvironmentName}-monthly"
+        BudgetLimit:
+          Amount: !Ref BudgetLimitDollars
+          Unit: USD
+        TimeUnit: MONTHLY
+        BudgetType: COST
+      NotificationsWithSubscribers:
+        - Notification:
+            NotificationType: ACTUAL
+            ComparisonOperator: GREATER_THAN
+            Threshold: 60
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlarmEmail
+        - Notification:
+            NotificationType: FORECASTED
+            ComparisonOperator: GREATER_THAN
+            Threshold: 100
+            ThresholdType: PERCENTAGE
+          Subscribers:
+            - SubscriptionType: EMAIL
+              Address: !Ref AlarmEmail
+
+  # ============================================================
+  # SSM PARAMETER (alarm topic ARN — fetch-at-boot pattern)
+  # ============================================================
+  AlarmTopicArnParam:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: /duokart/dev/sns-alarms
+      Type: String
+      Value: !Ref AlarmTopic
+      Description: "SNS alarm topic ARN"
+      Tags:
+        Project: DuoKart
+
+Outputs:
+  AlarmTopicArn:
+    Description: "Alarm SNS topic ARN"
+    Value: !Ref AlarmTopic
+    Export:
+      Name: !Sub "${AWS::StackName}-AlarmTopicArn"
+  DashboardName:
+    Description: "CloudWatch dashboard name"
+    Value: !Ref Dashboard
+    Export:
+      Name: !Sub "${AWS::StackName}-DashboardName"
+  TrailArn:
+    Description: "CloudTrail trail ARN"
+    Value: !GetAtt CloudTrail.Arn
+    Export:
+      Name: !Sub "${AWS::StackName}-TrailArn"
+  TrailBucketName:
+    Description: "CloudTrail S3 bucket name"
+    Value: !Ref TrailBucket
+    Export:
+      Name: !Sub "${AWS::StackName}-TrailBucketName"
+  BudgetName:
+    Description: "Monthly budget name"
+    Value: !Sub "duokart-${EnvironmentName}-monthly"
+    Export:
+      Name: !Sub "${AWS::StackName}-BudgetName"
+
