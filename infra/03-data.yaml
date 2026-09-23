@@ -89,7 +89,7 @@ Resources:
     Type: AWS::SSM::Parameter
     Properties:
       Name: /duokart/dev/db-password
-      Type: String
+      Type: SecureString
       Value: !Ref DBPassword
       Description: "RDS master password (app servers fetch at boot)"
       Tags:
