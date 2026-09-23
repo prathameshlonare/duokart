@@ -17,15 +17,14 @@ Day 7 adds zero AWS resources. It closes the one open security item, captures th
 
 ## Morning — Swapnil: close + prove (about 1 hour)
 
-### 1. SecureString migration (highest-signal security fix left)
+### 1. ~~SecureString migration~~ SKIPPED — CFN doesn't support it
 
-`docs/day-3-data.md` still has `Type: SecureString` unchecked — `/duokart/dev/db-password` is a plain `String` (visible in console).
+**Attempted and failed:** CloudFormation `AWS::SSM::Parameter` does not accept `SecureString` — only `String` and `StringList` are valid enum values. Deploy rejected with `Validation failed: SecureString is not a valid enum value`.
 
-1. `infra/03-data.yaml`: `DBPasswordParam` → `Type: SecureString` (keep same `Name`, same `Value: !Ref DBPassword`).
-2. Local check: `python -c` with CFN `!` ignore → `YAML OK`.
-3. Commit + push: `fix(day3): store db password as SecureString`.
-4. Console: `duokart-03-data` → Update → Replace template → same `DBPassword` value re-pasted (update needs the param again) → `UPDATE_COMPLETE` (SSM param type replaces; RDS password untouched since value identical).
-5. Verify: SSM → `/duokart/dev/db-password` → Type `SecureString`, value hidden. ASG refresh (new instances fetch with `--with-decryption` — UserData already does), `/health connected`.
+- `docs/day-3-data.md` `Type: SecureString` checkbox stays unchecked — known limitation.
+- `/duokart/dev/db-password` remains `String` in SSM.
+- Note this as a tradeoff row in the README (Prathamesh's section).
+- Commit: `fix(day3): revert SSM param to String — CFN doesn't support SecureString`.
 
 ### 2. Kill-1-EC2 self-heal drill (fills `architecture.md` evidence box)
 
@@ -34,12 +33,15 @@ Day 7 adds zero AWS resources. It closes the one open security item, captures th
 3. Throughout: `curl http://<ALB-DNS>/` loop still `200` (ALB + ASG story proven live).
 4. Save to `docs/screenshots/day-7/` as `self-heal.png`.
 
-### 3. Bills delete-denied proof (matches `demo-script.md` shot 4)
+### 3. ~~Bills delete-denied proof~~ SKIPPED — ps-19 has no Object Lock
 
-1. S3 → check orphan `duokart-dev-bills-ps-18` with locked `bills/test.txt`: if it exists → Delete → screenshot denial as `bills-locked-proof.png` (proves Day 4 lock).
-2. If orphan expired/gone: S3 → live `duokart-dev-bills-ps-19` → show versioned bill + presigned PUT works → save same filename + one-line note in README tradeoffs that `ps-19` dropped the lock for dev cleanup (Day 4 lock pain).
+**Why skipped:** `ps-18` (Compliance 30d lock) orphan is gone. Current live bucket `duokart-dev-bills-ps-19` was created **without Object Lock** so that nightly `DELETE` can clean it up during full destroy. A locked bucket cannot be deleted even when empty — Day 4 lock pain taught us this.
 
-Done when: SecureString verified + service healthy, self-heal screenshots show terminate → replace → still-200, lock-denial captured.
+- No `bills-locked-proof.png` — lock proof not possible on `ps-19`.
+- README tradeoffs table already explains the `ps-19` no-lock decision.
+- Instead: verify presigned PUT still works on `ps-19` as a smoke test (optional).
+
+Done when: service healthy after rebuild, self-heal screenshots show terminate → replace → still-200. SecureString and bills-lock skipped (see notes above).
 
 ---
 
@@ -58,6 +60,7 @@ Both names + actual components (Swapnil: ALB half, data template, storage bucket
 | Decision | Chose | Rejected | Why |
 |----------|-------|----------|-----|
 | Bills retention | `ps-19` versioned, no lock (`Delete` policy) | Compliance 30d (`ps-18` orphan) | Lock blocked nightly delete + forced bucket churn; kept `ps-18` orphan till expiry, ship on clean `ps-19` |
+| SSM password type | `String` | `SecureString` | CloudFormation `AWS::SSM::Parameter` doesn't accept `SecureString` — only `String`/`StringList` enum values; deploy rejected |
 | Queue type | Standard SQS | FIFO | Throughput over ordering; idempotency via `orderId` |
 | Poison handling | DLQ after 3 receives | Retry forever / drop | Counter never jams, no silent loss, redrive possible |
 | Bill uploads | Presigned + client SHA-256 checksum | App proxies bytes | App never touches bytes; S3 Object Lock *requires* checksum header |
@@ -90,10 +93,10 @@ After fork verified: `02-compute` → `05-queue` → `03-data` → `01-vpc` → 
 
 ## Definition of Done for Day 7
 
-- [ ] `/duokart/dev/db-password` is `SecureString`, app healthy after refresh
+- [x] `/duokart/dev/db-password` stays `String` — CFN `AWS::SSM::Parameter` doesn't support `SecureString` (known limitation, noted in tradeoffs)
 - [ ] `self-heal.png` (terminate → ASG replace → still-200) committed
-- [ ] `bills-locked-proof.png` (delete denied) committed
-- [ ] README rewritten (problem, stack, cost, proof in 30s) + `Who did what` real + tradeoffs table
+- [ ] `bills-locked-proof.png` skipped — `ps-19` has no Object Lock (needed for clean destroy)
+- [ ] README rewritten (problem, stack, cost, proof in 30s) + `Who did what` real + tradeoffs table (incl. SecureString + no-lock rows)
 - [ ] `architecture.png` committed, all `docs/screenshots/day-*` pushed
 - [ ] Fork verified with both histories
 - [ ] `destroy-checklist.md` executed, billing screenshot saved
