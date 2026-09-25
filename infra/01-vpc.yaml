@@ -11,7 +11,7 @@
 #   the Outputs tab into the Day-1 PR.
 # Verify locally (no AWS calls):
 #   python -c "import yaml; yaml.safe_load(open('infra/01-vpc.yaml')); print('YAML OK')"
-# Consumers: 02-alb.yaml imports subnets + alb/app/bastion SGs; 03-data.yaml
+# Consumers: 02-compute.yaml imports subnets + alb/app/bastion SGs; 03-data.yaml
 #   imports private subnets + db-sg. Destroy: delete this stack LAST
 #   (see docs/destroy-checklist.md); nightly rule keeps it up all week.
 #
@@ -310,6 +310,11 @@ Resources:
           ToPort: 5000
           SourceSecurityGroupId: !Ref AlbSecurityGroup
           Description: "Flask app port (target-group flexibility)"
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          SourceSecurityGroupId: !Ref BastionSecurityGroup
+          Description: "SSH jump via bastion only"
       Tags:
         - Key: Name
           Value: !Sub "duokart-${EnvironmentName}-app-sg"
@@ -389,12 +394,12 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-PrivateSubnet2Id"
   AlbSecurityGroupId:
-    Description: "ALB SG (02-alb.yaml attaches the ALB here)"
+    Description: "ALB SG (02-compute.yaml attaches the ALB here)"
     Value: !Ref AlbSecurityGroup
     Export:
       Name: !Sub "${AWS::StackName}-AlbSgId"
   AppSecurityGroupId:
-    Description: "App SG (02-alb.yaml launch template uses this)"
+    Description: "App SG (02-compute.yaml launch template uses this)"
     Value: !Ref AppSecurityGroup
     Export:
       Name: !Sub "${AWS::StackName}-AppSgId"
@@ -404,7 +409,7 @@ Outputs:
     Export:
       Name: !Sub "${AWS::StackName}-DbSgId"
   BastionSecurityGroupId:
-    Description: "Bastion SG (02-alb.yaml bastion instance uses this)"
+    Description: "Bastion SG (02-compute.yaml bastion instance uses this)"
     Value: !Ref BastionSecurityGroup
     Export:
       Name: !Sub "${AWS::StackName}-BastionSgId"
