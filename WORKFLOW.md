@@ -1,68 +1,54 @@
-# DuoKart: Project Reset & Simplified Workflow
+# DuoKart Workflow - Pair Programming + Cost Discipline
 
-This document outlines the simplified, code-first approach for the remainder of the DuoKart project. We are removing the heavy documentation process to focus entirely on building AWS infrastructure and Python code via Discord pair programming.
+How Prathamesh + Swapnil share one keyboard over Discord, prove a real 50/50 split in `main` history, and keep AWS spend inside a student budget.
 
-## 1. Files and Folder Deletion (The Cleanup)
-We are dropping the "enterprise compliance" overhead. Run these exact commands in your terminal to delete the unnecessary tracking files:
+## 1. The Handoff Rule (the 50/50 proof)
 
-```bash
-git rm AGENTS.md
-git rm OPENCODE.md
-git rm docs/contribution-log.md
-git rm docs/cost-log.md
-git rm docs/architecture-decisions.md
-git rm docs/day-*.md
+One person streams and types, the other reviews live - never one streaming while the other watches. Both names must alternate in `main` history, because that history is the resume: on fork, each author's commits travel as contribution proof.
+
+* **Turn 1 (Swapnil):** shares screen, builds one component, tests it, `git commit` + `git push origin main`.
+* **The Handoff:** Prathamesh runs `git pull origin main` and confirms the diff.
+* **Turn 2 (Prathamesh):** shares screen, builds the next component, tests it, `git commit` + `git push origin main`.
+* **Repeat.** A real night looks like: bastion host (Swapnil) → ASG to private subnets (Prathamesh) → queue mail split (Prathamesh) → observe gaps (Swapnil).
+
+A turn is one component + its verification, not one evening. Small alternating commits beat two giant ones - reviewers read the alternation as collaboration.
+
+## 2. Commit subjects
+
+Subject = what changed, imperative, file-scoped. Reasoning lives in day docs, never in subjects.
+
+| Prefix | Use for | Example |
+|---|---|---|
+| `fix(...)` | Bug against intended design | `fix(compute): place ASG in private subnets` |
+| `feat(...)` | New capability | `feat(queue): owner gets RECEIVED, buyer gets PACKING` |
+| `docs(...)` | Prose, diagrams, plans | `docs(workflow): rename NEW-WORKFLOW to WORKFLOW` |
+
+Scope in brackets names the tier (`vpc`, `compute`, `data`, `storage`, `queue`, `observe`). Never `git add .` - local-only plans and keys must not ride along.
+
+## 3. Repo rules
+
+* Direct pushes to `main` - no PRs required (owner disabled "require a pull request" under Settings → Branches).
+* AWS is temporary, the repo is permanent. Console-only deploys, no CLI keys.
+* `.pem` and `.env` never enter git. Ever.
+
+## 4. Stack routine (us-east-2)
+
+**Build order** - every import must exist before its consumer:
+
 ```
-*Keep:* `docs/api-contracts.md` (useful for the backend later), `docs/aws-scope.md` (optional reference), and `README.md`.
-
-## 2. Fixing the Git and GitHub Commit History
-We want a clean slate going into Day 2. Commit the deletions we just made to lock in the simplified structure:
-
-```bash
-git commit -m "chore: simplify project structure and remove meta-docs"
-git push origin main
+01-vpc → 03-data + 04-storage + 05-queue (parallel) → 02-compute → 06-observe
 ```
-*Note:* Your previous PRs (Day 0 and Day 1) will remain in GitHub's history, which perfectly proves your initial setup work to interviewers. Going forward, the commit history itself will serve as our actual 50/50 contribution log.
 
-## 3. GitHub Repo Changes (Settings)
-To enable fast pair programming on Discord, we need to allow direct pushes to `main`.
-1. **Swapnil (Repo Owner):** Go to the DuoKart repository on GitHub.
-2. Click **Settings** > **Branches**.
-3. Under Branch Protection Rules, edit the rule for `main`.
-4. **Uncheck** "Require a pull request before merging".
-5. Save changes. 
+**Values you always paste** (keep this open during deploys):
 
-## 4. The Pair Programming "Handoff" Rule (Crucial for Resumes)
-To prove a 50/50 split in interviews, **both names must appear equally in the GitHub commit history**. You cannot have one person stream while the other watches. You must use the Handoff method:
+| Stack | Parameter | Value pattern |
+|---|---|---|
+| `01-vpc` | `AdminSshCidr` | Your current IP + `/32` (bare IP fails the stack) |
+| `03-data` | `DBPassword` | 16+ chars, only `A-Z a-z 0-9 - _ ! #` (`%` breaks systemd) |
+| `06-observe` | `AlbShortName` | `app/<name>/<id>` tail of the ALB ARN |
+| `06-observe` | `TgShortName` | `targetgroup/<name>/<id>` tail of the TG ARN |
 
-* **Turn 1 (Swapnil):** Swapnil shares his screen, writes the first component (e.g., the Load Balancer), tests it, and runs `git commit` and `git push origin main`.
-* **The Handoff:** Prathamesh runs `git pull origin main` on his machine to sync the code.
-* **Turn 2 (Prathamesh):** Prathamesh shares his screen, takes over the keyboard, writes the next component (e.g., the Auto Scaling Group), tests it, and runs `git commit` and `git push origin main`.
-* **Result:** True hands-on learning for both of you, and an indisputable Git history showing alternating commits. When Prathamesh forks this repo at the end, his own commits will be there to prove his contribution.
+**Nightly teardown** (reverse, VPC last): delete `02-compute + 05-queue + 03-data`, keep `01-vpc + 04-storage (ps-19)`. Confirm EC2 + NAT are gone so billing stops.
 
-## 5. The Daily AWS Routine (Cost-Saving IaC)
-Because we destroy the AWS environment every night to save our $170 budget, our CloudFormation deployment skills will become our strongest interview talking point.
+**Money:** ~\$3.01/day when up (RDS Multi-AZ + ALB + NAT are the burners), ~\$20–25 total on a Free Tier account for the whole build, guarded by a \$20 budget alarm.
 
-**A. The Morning Rebuild (~5 mins)**
-1. Log into AWS Console (us-east-2).
-2. Go to CloudFormation -> Create Stack -> Upload `infra/01-vpc.yaml`.
-3. Name it `duokart-02-vpc` (as done on Day 1).
-4. Wait for `CREATE_COMPLETE` (The NAT Gateway takes ~3 minutes).
-
-**B. The Build Phase**
-1. Create the next CloudFormation template (e.g., `infra/02-compute.yaml`).
-2. Upload, test, fix errors, and update the stack until the architecture works.
-
-**C. The Nightly Teardown**
-1. Go to CloudFormation.
-2. Delete the highest number stack first (e.g., `02-compute`).
-3. Delete the VPC stack last.
-4. Verify EC2 instances and NAT Gateways are terminated so billing completely stops.
-
----
-
-## Tomorrow: Day 2 Starting Line (Compute)
-Once this cleanup is pushed, your VS Code will feel 100x lighter. You will only see `infra/01-vpc.yaml` and the Python folders. 
-
-**Your Goal for Day 2:** 
-Create `infra/02-compute.yaml`. Use the Handoff Rule: one of you builds the Application Load Balancer (ALB), then you hand off, and the other builds the EC2 instance/Auto Scaling Group.
