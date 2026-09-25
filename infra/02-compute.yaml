@@ -34,6 +34,9 @@ Parameters:
     Type: String
     Default: duokart-04-storage
     Description: "Name of Day 4 storage stack to fetch S3 bucket ARNs from."
+  BastionKeyName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: "Console-created key pair for bastion SSH. *.pem never in git."
   QueueStackName:
     Type: String
     Default: duokart-05-queue
@@ -335,6 +338,29 @@ Resources:
         - Key: ManagedBy
           Value: CloudFormation
           PropagateAtLaunch: true
+
+  # ============================================================
+  # BASTION HOST — SSH jump in Public-1 (Swapnil, live-bastion path)
+  # ============================================================
+  BastionHost:
+    Type: AWS::EC2::Instance
+    Properties:
+      InstanceType: t3.micro
+      KeyName: !Ref BastionKeyName
+      ImageId: !FindInMap [RegionAmiMap, !Ref "AWS::Region", UbuntuAmi]
+      SubnetId:
+        Fn::ImportValue: !Sub "${VpcStackName}-PublicSubnet1Id"
+      SecurityGroupIds:
+        - Fn::ImportValue: !Sub "${VpcStackName}-BastionSgId"
+      Tags:
+        - Key: Name
+          Value: !Sub "duokart-${EnvironmentName}-bastion"
+        - Key: Project
+          Value: DuoKart
+        - Key: Environment
+          Value: !Ref EnvironmentName
+        - Key: ManagedBy
+          Value: CloudFormation
 
 Outputs:
   AlbDnsName:
