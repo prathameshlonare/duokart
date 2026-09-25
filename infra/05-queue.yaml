@@ -207,9 +207,10 @@ Resources:
                   )
 
                   # Notify buyer + owner
-                  msg = json.dumps({'orderId': order_id, 'status': 'PACKING', 'total': body.get('total', 0)})
-                  sns.publish(TopicArn=BUYER, Message=msg)
-                  sns.publish(TopicArn=OWNER, Message=msg)
+                  owner_msg = json.dumps({'orderId': order_id, 'status': 'RECEIVED', 'event': 'new order arrived', 'items': body.get('items', []), 'total': body.get('total', 0), 'buyerEmail': body.get('buyerEmail', '')})
+                  buyer_msg = json.dumps({'orderId': order_id, 'status': 'PACKING', 'total': body.get('total', 0)})
+                  sns.publish(TopicArn=OWNER, Message=owner_msg)
+                  sns.publish(TopicArn=BUYER, Message=buyer_msg)
 
               return {'statusCode': 200}
       Tags:
