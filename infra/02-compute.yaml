@@ -313,9 +313,9 @@ Resources:
       DesiredCapacity: "2"
       VPCZoneIdentifier:
         - Fn::ImportValue:
-            Fn::Sub: "${VpcStackName}-PublicSubnet1Id"
+            Fn::Sub: "${VpcStackName}-PrivateSubnet1Id"
         - Fn::ImportValue:
-            Fn::Sub: "${VpcStackName}-PublicSubnet2Id"
+            Fn::Sub: "${VpcStackName}-PrivateSubnet2Id"
       LaunchTemplate:
         LaunchTemplateId: !Ref AppLaunchTemplate
         Version: !GetAtt AppLaunchTemplate.LatestVersionNumber
