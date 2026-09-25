@@ -21,7 +21,7 @@ Day 7 adds zero AWS resources. It closes the one open security item, captures th
 
 **Attempted and failed:** CloudFormation `AWS::SSM::Parameter` does not accept `SecureString` — only `String` and `StringList` are valid enum values. Deploy rejected with `Validation failed: SecureString is not a valid enum value`.
 
-- `docs/day-3-data.md` `Type: SecureString` checkbox stays unchecked — known limitation.
+- `docs/days/day-3-data.md` `Type: SecureString` checkbox stays unchecked — known limitation.
 - `/duokart/dev/db-password` remains `String` in SSM.
 - Note this as a tradeoff row in the README (Prathamesh's section).
 - Commit: `fix(day3): revert SSM param to String — CFN doesn't support SecureString`.

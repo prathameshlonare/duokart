@@ -1,6 +1,6 @@
 <div align="center">
 
-![DuoKart](https://capsule-render.vercel.app/api?type=waving&color=FF6B35&height=180&section=header&text=DuoKart&fontSize=70&fontColor=FFFFFF&desc=Small%20Shop%20Order%20%2B%20Bill%20Manager&descAlignY=75)
+![DuoKart — Small Shop Order + Bill Manager](docs/banner.jpg)
 
 **Bills never lost. Site stays up in festival rush.**
 
@@ -32,6 +32,19 @@ Two friends, one career path (AWS/DevOps), zero interest in another tutorial-cop
 
 Proven end to end: `ord-000049` (both inboxes same mail) → `ord-000050` (split mail) → kill-1-EC2 self-heal with ALB at `200` throughout.
 
+## Who built what - verify in git, not my words
+
+No solo heroics. Every tier above went through alternating Discord handoffs per `WORKFLOW.md`: one types while the other reviews, then swap. Don't take this section's word for it:
+
+```
+git shortlog -sn --no-merges
+```
+
+60 commits and counting, both authors on every tier - run it and watch the names alternate. The handoff pattern matters more than any single tally:
+
+* **Swapnil** - VPC + bastion, RDS template, S3 buckets, queue infra, observe tier (alarms/dashboard/trail/budget), self-heal drill.
+* **Prathamesh** - ASG + Flask app, RDS wiring, presigned uploads, order/status board, queue mail split, E2E proofs, docs.
+
 ## Quick start (local)
 
 **Linux:**
@@ -57,8 +70,8 @@ Then: `/health` → `connected`, `/products` → `Neem Soap`, `POST /orders` →
 |---|---|---|
 | `POST /orders` | `202` + `{"orderId","status":"RECEIVED"}` | `400` validation / total mismatch, `409` id conflict |
 | `GET /orders/:id` | `200` + `{"orderId","status","total"}` | `404` unknown id |
-| `GET /products` | `200` + product list | — |
-| `GET /health` | `{"status":"healthy","database":"connected"}` | — |
+| `GET /products` | `200` + product list | - |
+| `GET /health` | `{"status":"healthy","database":"connected"}` | - |
 | `POST /uploads/url` | `200` + `{"uploadUrl","key","bucket"}` | `400` bad kind |
 
 `total` must equal `sum(qty*price)`. Same `orderId` + same payload re-POSTs safe (`202`); same id + different payload → `409`.
@@ -132,7 +145,7 @@ infra/06-observe.yaml  8 alarms + dashboard + Trail + \$20 budget
 infra/schema.sql       products / users / orders + Neem Soap seed
 app/app.py             Flask API (see table above)
 app/requirements.txt   flask, gunicorn, pymysql, cryptography, boto3
-docs/                  day-0 → day-7 logs, api-contracts, aws-scope, deployment, destroy-checklist, demo-script
+docs/                  live docs + days/ (day-0 → day-7 logs), api-contracts, aws-scope, deployment, destroy-checklist, demo-script
 ```
 
 </details>
@@ -153,13 +166,6 @@ docs/                  day-0 → day-7 logs, api-contracts, aws-scope, deploymen
 | Edge | Deferred (no WAF / 2nd NAT / CRR / domain) | Build now | No real users; cost with zero signal |
 
 </details>
-
-## Who built it
-
-Alternating commits, ~50/50 real split per `WORKFLOW.md`:
-
-* **Swapnil** - VPC + bastion, RDS template, S3 buckets, queue infra, observe tier (alarms/dashboard/trail/budget), self-heal drill.
-* **Prathamesh** - ASG + Flask app, RDS wiring, presigned uploads, order/status board, queue mail split, E2E proofs, docs.
 
 ---
 <div align="center">

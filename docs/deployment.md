@@ -7,9 +7,9 @@ No CLI. All stacks created via Console: CloudFormation → Create stack → Uplo
 2. `02-compute.yaml` — ALB + ASG + EC2 (IAM role, no keys, SSM auto-fetch for DB). Live: running as stack `duokart-02-compute`.
 3. `03-data.yaml` — RDS MySQL Multi-AZ `db.t3.micro` (password from SSM) + DB Subnet Group. Live: deployed as `duokart-03-data` (Day 3 complete, verified `/health connected` + `/products Neem Soap`).
 4. `04-storage.yaml` — S3 photos + bills (versioning + lifecycle, Object Lock on bills). Live: deployed as `duokart-04-storage` (Day 4 complete, verified presigned photo + bill PUT with checksum).
-5. `05-queue.yaml` — SQS + DLQ + DynamoDB (`duokart-orders`) + SNS buyer/owner + Lambda worker. Ready to build (Day 5, see `docs/day-5-queue.md` + `docs/day-5-execution-plan.md`).
+5. `05-queue.yaml` — SQS + DLQ + DynamoDB (`duokart-orders`) + SNS buyer/owner + Lambda worker. Ready to build (Day 5, see `docs/days/day-5-queue.md`).
 6. `06-observe.yaml` — CloudWatch alarms + dashboard, CloudTrail, Budgets (or Budgets via Billing console).
-7. Day 7 ship — no new stack: SecureString migration (in-place `03-data` update) + evidence drills + README/architecture polish + fork + full destroy. See `docs/day-7-ship.md`.
+7. Day 7 ship — no new stack: SecureString migration (in-place `03-data` update) + evidence drills + README/architecture polish + fork + full destroy. See `docs/days/day-7-ship.md`.
 
 ## Rules
 - Templates are source of truth. No manual console edits to infra.
