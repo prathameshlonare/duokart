@@ -28,7 +28,7 @@ Scope in brackets names the tier (`vpc`, `compute`, `data`, `storage`, `queue`, 
 ## 3. Repo rules
 
 * Direct pushes to `main` - no PRs required (owner disabled "require a pull request" under Settings → Branches).
-* AWS is temporary, the repo is permanent. Console-only deploys, no CLI keys.
+* AWS is temporary, the repo is permanent. CloudFormation templates are the source of truth; console stack creation was used for step-by-step cost governance and zero persistent local CLI access keys.
 * `.pem` and `.env` never enter git. Ever.
 
 ## 4. Stack routine (us-east-2)

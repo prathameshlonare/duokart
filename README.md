@@ -178,7 +178,9 @@ class node_cloudwatch,node_cloudtrail,node_budget toneIndigo
 </details>
 
 <details>
-<summary><b>Deploy (console-only, us-east-2, ~30 min)</b></summary>
+<summary><b>Deploy (Modular CloudFormation Stacks, us-east-2, ~30 min)</b></summary>
+
+All 6 infrastructure tiers are declared as modular CloudFormation templates in `infra/`. Console stack launches were intentionally chosen for step-by-step cost governance, real-time export binding verification, and zero persistent CLI keys on a \$25 student budget (stacks can also be deployed sequentially via `aws cloudformation create-stack`).
 
 Order matters every stack imports the one before it:
 
@@ -219,8 +221,9 @@ infra/04-storage.yaml  S3 photos + bills (ps-19, versioned, private) + SSM
 infra/05-queue.yaml    SQS + DLQ + DDB + SNS buyer/owner + Lambda worker
 infra/06-observe.yaml  8 alarms + dashboard + Trail + \$20 budget
 infra/schema.sql       products / users / orders + Neem Soap seed
-app/app.py             Flask API (see table above)
-app/requirements.txt   flask, gunicorn, pymysql, cryptography, boto3
+app/app.py             Flask API (routes, validation, S3/SQS/DDB integrations)
+app/test_app.py        Unit test suite (pytest + Flask test client, mock AWS)
+app/requirements.txt   flask, gunicorn, pymysql, cryptography, boto3, pytest
 docs/                  live docs + days/ (day-0 → day-7 logs), api-contracts, aws-scope, deployment, destroy-checklist, demo-script
 ```
 
