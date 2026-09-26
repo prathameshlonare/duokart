@@ -3,3 +3,4 @@ gunicorn
 pymysql
 cryptography
 boto3
+pytest
