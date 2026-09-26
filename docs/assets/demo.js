@@ -55,4 +55,14 @@
     if (!store[id]) { out("get-out", { error: "NOT_FOUND", message: "unknown id" }, "404"); return; }
     out("get-out", { orderId: id, status: store[id].status, total: store[id].total }, "200");
   });
+  var deliver = el("deliver");
+  if (deliver) deliver.addEventListener("click", function () {
+    var id = el("f-id").value.trim();
+    if (!store[id]) { out("order-out", { error: "NOT_FOUND", message: "send the order first" }, "404"); return; }
+    if (store[id].status !== "PACKING") { out("order-out", { orderId: id, status: store[id].status }, "200"); return; }
+    store[id].status = "DONE";
+    out("order-out", { orderId: id, status: "DONE" }, "200");
+    renderTimeline(["RECEIVED", "PACKING", "DONE"]);
+    el("mail-buyer").textContent = "Buyer mail: order " + id + " DELIVERED. Enjoy the Neem Soap.";
+  });
 })();
