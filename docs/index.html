@@ -18,9 +18,20 @@
 <p><a href="#architecture">Architecture</a> · <a href="#playground">Try the API (simulated)</a> · <a href="#proofs">Proofs</a></p>
 </div></header>
 <main class="wrap">
-<section class="card" id="status"><h2>Status</h2><!-- Task 2 --></section>
-<section class="card" id="architecture"><h2>Architecture</h2><!-- Task 2 --></section>
-<section class="card" id="control-room"><h2>Control room</h2><!-- Task 2 --></section>
+<section class="card" id="status"><h2>Status</h2><p>Torn down per <code>docs/destroy-checklist.md</code> (fill delete date here at ship time). Destroy order <code>02-compute → 05-queue → 03-data → 01-vpc → 04-storage</code>. Nothing below is live — every claim links to a screenshot + commit.</p></section>
+<section class="card" id="architecture"><h2>Architecture</h2><img class="shot" src="./architecture.png" alt="DuoKart architecture" onerror="this.style.display='none'">
+<p>Browser → ALB → ASG/EC2 → RDS. App → SQS → Lambda → DynamoDB → SNS (buyer + owner). App → S3 presigned PUTs (photos/bills). VPC underneath, alarms + trail watching. Full diagram source in <code>README.md</code> mermaid.</p></section>
+<section class="card" id="control-room"><h2>Control room</h2><img class="shot" src="./screenshots/day-6/dashboard.png" alt="CloudWatch dashboard" onerror="this.style.display='none'">
+<table class="spec"><tr><th>Panel</th><th>How to read</th></tr>
+<tr><td>Requests vs 5xx</td><td>Traffic vs real crashes. &gt;10/5min = fire</td></tr>
+<tr><td>Healthy/Unhealthy</td><td>Dead counter before ASG finishes healing</td></tr>
+<tr><td>RDS CPU</td><td>Sustained &gt;80% = slow query or leak</td></tr>
+<tr><td>Free Storage</td><td>&lt;5 GB early warning on 20 GB gp2</td></tr>
+<tr><td>SQS age</td><td>&gt;300s = worker dead/stuck</td></tr>
+<tr><td>DLQ</td><td>&gt;0 = poison order in the wild</td></tr>
+<tr><td>Lambda</td><td>Invokes vs errors vs duration per order</td></tr>
+<tr><td>DynamoDB</td><td>Reads/writes vs throttles on duokart-orders</td></tr>
+</table></section>
 <section class="card" id="alarms"><h2>Alarms</h2><!-- Task 3 --></section>
 <section class="card" id="proofs"><h2>Proof map</h2><!-- Task 3 --></section>
 <section class="card" id="cost"><h2>Wallet guard</h2><!-- Task 3 --></section>
