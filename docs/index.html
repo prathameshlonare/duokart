@@ -36,7 +36,7 @@
 <section class="block" id="alarms">
 <h2>Eight alarms, one mailbox</h2>
 <p class="lede">Every alarm pages before customers notice. Three of them sit at “insufficient data” when healthy — that means zero errors, not broken monitors.</p>
-<table class="rows"><tr><th>Alarm</th><th>Fires when</th><th>Why this number</th></tr>
+<div class="rows-scroll"><table class="rows"><tr><th>Alarm</th><th>Fires when</th><th>Why this number</th></tr>
 <tr><td class="num">alb-5xx</td><td class="num">5xx &gt; 10 / 5 min</td><td>Flask 500s only on real crashes</td></tr>
 <tr><td class="num">alb-unhealthy</td><td class="num">unhealthy &gt; 0, 2 min</td><td>Dead counter before ASG replace finishes</td></tr>
 <tr><td class="num">rds-cpu</td><td class="num">CPU &gt; 80% ×3</td><td>db.t3.micro is bursty; sustained 80% = leak</td></tr>
@@ -44,7 +44,7 @@
 <tr><td class="num">sqs-age</td><td class="num">oldest &gt; 300 s</td><td>Order sits 5 min unserved</td></tr>
 <tr><td class="num">dlq-depth</td><td class="num">visible ≥ 1</td><td>Any poison order pages us</td></tr>
 <tr><td class="num">worker-errors</td><td class="num">errors &gt; 0</td><td>Packer crashed: bad payload, SNS deny, DDB fail</td></tr>
-<tr><td class="num">ddb-throttle</td><td class="num">throttles &gt; 0</td><td>Hot orderId spike</td></tr></table>
+<tr><td class="num">ddb-throttle</td><td class="num">throttles &gt; 0</td><td>Hot orderId spike</td></tr></table></div>
 </section>
 
 <section class="block" id="proofs">
