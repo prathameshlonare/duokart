@@ -236,7 +236,7 @@ Resources:
             mkdir -p /opt/duokart
             cd /opt/duokart
 
-            git clone https://github.com/swapnilkumbhare04/duokart.git .
+            git clone https://github.com/prathameshlonare/duokart.git .
 
             python3 -m venv venv
             source venv/bin/activate
