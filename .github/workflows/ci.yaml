@@ -22,10 +22,11 @@ jobs:
               yaml.load(open(f), L)
               print('OK', f)
           EOF
-      - name: App imports
+      - name: App imports and tests
         run: |
           pip install -r app/requirements.txt
           python -m py_compile app/app.py
+          pytest app/test_app.py -v
       - name: Showcase static guards
         run: |
           test -f docs/index.html
