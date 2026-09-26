@@ -80,23 +80,98 @@ Then: `/health` → `connected`, `/products` → `Neem Soap`, `POST /orders` →
 <summary><b>Architecture as code (mermaid)</b></summary>
 
 ```mermaid
-flowchart LR
-    U[Users: laptop / mobile / shop owner] --> I[Internet]
-    R[Route53 alias<br/>doc-only, no domain] -.-> ALB
-    I --> ALB[ALB<br/>public 10.0.1.0/24 + 10.0.2.0/24<br/>HTTP:80]
-    ALB -->|5000, app-sg from alb-sg| ASG[Single Multi-AZ ASG<br/>private 10.0.11.0/24 + 10.0.12.0/24<br/>Flask :5000 /health]
-    B[Bastion<br/>public, SSH + SSM] -.->|22 from bastion-sg| ASG
-    N[NAT Gateway<br/>single, public-1] -.->|egress| ASG
-    ASG -->|3306 app-sg only| RDS[(RDS MySQL 8.0 Multi-AZ<br/>primary 2a + standby 2b)]
-    ASG -->|send order| SQS[SQS Orders<br/>redrive:3]
-    SQS --> DLQ[SQS DLQ<br/>failed orders]
-    SQS --> L[Lambda 3.12<br/>batch:1]
-    L -->|PACKING| DDB[(DynamoDB duokart-orders<br/>PK orderId)]
-    L -->|RECEIVED| SNSo[SNS Owner]
-    L -->|PACKING| SNSb[SNS Buyer]
-    ASG <-->|presigned PUT| S3[(S3 Photos + Bills<br/>versioned, private)]
-    ASG -.-> CW[CloudWatch 8 alarms + dashboard]
-    ASG -.-> CT[CloudTrail to S3]
+flowchart TD
+
+subgraph group_edge["Network and access"]
+  node_vpc["VPC and subnets<br/>[01-vpc.yaml]"]
+  node_alb["Application load balancer<br/>[02-compute.yaml]"]
+  node_asg["Private app instances<br/>[02-compute.yaml]"]
+  node_bastion["Bastion and SSM<br/>[02-compute.yaml]"]
+end
+
+subgraph group_api["Shop API"]
+  node_app["Flask API<br/>[app.py]"]
+  node_rds[("RDS MySQL<br/>[03-data.yaml]")]
+  node_schema["Commerce schema<br/>[schema.sql]"]
+end
+
+subgraph group_orders["Order processing"]
+  node_sqs["Order queue<br/>[05-queue.yaml]"]
+  node_dlq["Dead-letter queue<br/>[05-queue.yaml]"]
+  node_worker["Order Lambda<br/>[05-queue.yaml]"]
+  node_ddb[("Order status table<br/>[05-queue.yaml]")]
+  node_snsowner["Owner notifications<br/>[05-queue.yaml]"]
+  node_snsbuyer["Buyer notifications<br/>[05-queue.yaml]"]
+end
+
+subgraph group_files["Bill and photo storage"]
+  node_s3[("Photos and bills<br/>[04-storage.yaml]")]
+  node_trailbucket[("Trail archive<br/>[04-storage.yaml]")]
+end
+
+subgraph group_ops["Operations and visibility"]
+  node_cloudwatch["Alarms and dashboard<br/>[06-observe.yaml]"]
+  node_cloudtrail["CloudTrail<br/>[06-observe.yaml]"]
+  node_budget["Cost budget<br/>[06-observe.yaml]"]
+end
+
+node_customer(("Shop user"))
+node_mail(("Email recipients"))
+
+node_customer -->|"HTTP requests"| node_alb
+node_alb -->|"forwards traffic"| node_asg
+node_vpc -.->|"provisions subnets"| node_asg
+node_asg -->|"runs API"| node_app
+node_app -->|"queries products"| node_rds
+node_app -->|"checks health"| node_rds
+node_schema -.->|"defines and seeds"| node_rds
+node_app -->|"sends order"| node_sqs
+node_app -->|"checks and writes order"| node_ddb
+node_sqs -->|"triggers"| node_worker
+node_worker -->|"updates status"| node_ddb
+node_worker -->|"sends received notice"| node_snsowner
+node_worker -->|"sends packing notice"| node_snsbuyer
+node_snsowner -->|"notifies owner"| node_mail
+node_snsbuyer -->|"notifies buyer"| node_mail
+node_sqs -->|"routes after 3 failures"| node_dlq
+node_app -.->|"returns presigned PUT URL"| node_customer
+node_customer -->|"uploads directly"| node_s3
+node_asg -.->|"emits monitored signals"| node_cloudwatch
+node_cloudtrail -->|"stores trail"| node_trailbucket
+node_bastion -.->|"admin access"| node_asg
+node_budget -.->|"tracks spend"| node_cloudwatch
+
+click node_vpc "https://github.com/prathameshlonare/duokart/blob/main/infra/01-vpc.yaml"
+click node_alb "https://github.com/prathameshlonare/duokart/blob/main/infra/02-compute.yaml"
+click node_app "https://github.com/prathameshlonare/duokart/blob/main/app/app.py"
+click node_asg "https://github.com/prathameshlonare/duokart/blob/main/infra/02-compute.yaml"
+click node_bastion "https://github.com/prathameshlonare/duokart/blob/main/infra/02-compute.yaml"
+click node_rds "https://github.com/prathameshlonare/duokart/blob/main/infra/03-data.yaml"
+click node_schema "https://github.com/prathameshlonare/duokart/blob/main/infra/schema.sql"
+click node_sqs "https://github.com/prathameshlonare/duokart/blob/main/infra/05-queue.yaml"
+click node_dlq "https://github.com/prathameshlonare/duokart/blob/main/infra/05-queue.yaml"
+click node_worker "https://github.com/prathameshlonare/duokart/blob/main/infra/05-queue.yaml"
+click node_ddb "https://github.com/prathameshlonare/duokart/blob/main/infra/05-queue.yaml"
+click node_snsowner "https://github.com/prathameshlonare/duokart/blob/main/infra/05-queue.yaml"
+click node_snsbuyer "https://github.com/prathameshlonare/duokart/blob/main/infra/05-queue.yaml"
+click node_s3 "https://github.com/prathameshlonare/duokart/blob/main/infra/04-storage.yaml"
+click node_cloudwatch "https://github.com/prathameshlonare/duokart/blob/main/infra/06-observe.yaml"
+click node_cloudtrail "https://github.com/prathameshlonare/duokart/blob/main/infra/06-observe.yaml"
+click node_trailbucket "https://github.com/prathameshlonare/duokart/blob/main/infra/04-storage.yaml"
+click node_budget "https://github.com/prathameshlonare/duokart/blob/main/infra/06-observe.yaml"
+
+classDef toneNeutral fill:#f8fafc,stroke:#334155,stroke-width:1.5px,color:#0f172a
+classDef toneBlue fill:#dbeafe,stroke:#2563eb,stroke-width:1.5px,color:#172554
+classDef toneAmber fill:#fef3c7,stroke:#d97706,stroke-width:1.5px,color:#78350f
+classDef toneMint fill:#dcfce7,stroke:#16a34a,stroke-width:1.5px,color:#14532d
+classDef toneRose fill:#ffe4e6,stroke:#e11d48,stroke-width:1.5px,color:#881337
+classDef toneIndigo fill:#e0e7ff,stroke:#4f46e5,stroke-width:1.5px,color:#312e81
+class node_customer,node_mail toneNeutral
+class node_vpc,node_alb,node_asg,node_bastion toneBlue
+class node_app,node_rds,node_schema toneAmber
+class node_sqs,node_dlq,node_worker,node_ddb,node_snsowner,node_snsbuyer toneMint
+class node_s3,node_trailbucket toneRose
+class node_cloudwatch,node_cloudtrail,node_budget toneIndigo
 ```
 
 </details>
