@@ -3,9 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DuoKart — Small Shop Order + Bill Manager</title>
-<meta name="description" content="DuoKart: Flask shop API on AWS (ALB + ASG + RDS + SQS + Lambda). Static showcase — stacks deleted, screenshots are the proof.">
+<title>DuoKart: Small Shop Order + Bill Manager</title>
+<meta name="description" content="DuoKart: Flask shop API on AWS (ALB + ASG + RDS + SQS + Lambda). Static showcase. Stacks deleted, screenshots are the proof.">
 <link rel="stylesheet" href="./assets/site.css">
+<link rel="preload" href="./assets/fonts/SpaceGrotesk-var.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="./assets/fonts/JetBrainsMono-var.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23C2410C'/%3E%3Ctext x='8' y='12' font-size='10' text-anchor='middle' fill='white' font-family='monospace'%3ED%3C/text%3E%3C/svg%3E">
 </head>
 <body>
@@ -19,24 +21,24 @@
 <div>
 <p class="kicker">DUOKART · AWS/DEVOPS · TWO BUILDERS</p>
 <h1>Bills never lost. Site stays up in festival rush.</h1>
-<p class="sub">A small-shop order and bill manager on AWS — Flask behind an ALB, private ASG, RDS, presigned S3 uploads, SQS to Lambda. Built by two friends learning DevOps, broken and fixed by hand.</p>
+<p class="sub">A small shop app on AWS: Flask behind a load balancer, private servers, a database, file uploads, and a mail queue. Built by two friends learning DevOps. We broke every part on purpose, then fixed it.</p>
 <div class="cta-row"><a class="btn solid" href="#playground">Try the API</a><a class="btn ghost" href="#proofs">See the proof</a></div>
 </div>
-<figure class="frame"><img src="./architecture.png" alt="DuoKart architecture diagram" onerror="this.closest('figure').style.display='none'"><figcaption>fig.01 — traffic: browser → ALB → ASG → RDS; orders: SQS → Lambda → DynamoDB → SNS</figcaption></figure>
+<figure class="frame"><img src="./architecture.png" alt="DuoKart architecture diagram" onerror="this.closest('figure').style.display='none'"><figcaption>fig.01: traffic: browser → ALB → ASG → RDS; orders: SQS → Lambda → DynamoDB → SNS</figcaption></figure>
 </div></section>
 
 <main class="wrap">
-<div class="logstrip"><span class="k">status</span> · stacks deleted per destroy-checklist (date filled at ship) · destroy order <span class="k">02-compute → 05-queue → 03-data → 01-vpc → 04-storage</span> · ~$3.01/day when up · nothing below is live</div>
+<div class="logstrip"><span class="k">status</span> · stacks deleted 2026-09-26 per destroy-checklist · destroy order <span class="k">02-compute → 05-queue → 03-data → 01-vpc → 04-storage</span> · ~$3.01/day when up · nothing below is live</div>
 
 <section class="block" id="control-room">
 <h2>The control room</h2>
-<p class="lede">One CloudWatch dashboard watched the whole shop. Each panel answers a single question: is money or uptime at risk right now?</p>
-<figure class="frame"><img loading="lazy" src="./screenshots/day-6/dashboard.png" alt="CloudWatch dashboard" onerror="this.closest('figure').style.display='none'"><figcaption>fig.02 — duokart-dev dashboard: requests, health, RDS, SQS age, DLQ, Lambda, DynamoDB</figcaption></figure>
+<p class="lede">One dashboard watched the whole shop. Each panel answers one question: are we losing money, or is the site down?</p>
+<figure class="frame"><img loading="lazy" src="./screenshots/day-6/dashboard.png" alt="CloudWatch dashboard" onerror="this.closest('figure').style.display='none'"><figcaption>fig.02: duokart-dev dashboard: requests, health, RDS, SQS age, DLQ, Lambda, DynamoDB</figcaption></figure>
 </section>
 
 <section class="block" id="alarms">
 <h2>Eight alarms, one mailbox</h2>
-<p class="lede">Every alarm pages before customers notice. Three of them sit at “insufficient data” when healthy — that means zero errors, not broken monitors.</p>
+<p class="lede">Each alarm mails us before buyers notice a problem. Three of them show “insufficient data” when healthy. That means zero errors, not a broken alarm.</p>
 <div class="rows-scroll"><table class="rows"><tr><th>Alarm</th><th>Fires when</th><th>Why this number</th></tr>
 <tr><td class="num">alb-5xx</td><td class="num">5xx &gt; 10 / 5 min</td><td>Flask 500s only on real crashes</td></tr>
 <tr><td class="num">alb-unhealthy</td><td class="num">unhealthy &gt; 0, 2 min</td><td>Dead counter before ASG replace finishes</td></tr>
@@ -50,37 +52,37 @@
 
 <section class="block" id="proofs">
 <h2>Receipts, not claims</h2>
-<p class="lede">Every tier was broken by hand and fixed by hand. Scroll sideways — each frame is a console screenshot from the build log.</p>
+<p class="lede">We broke each part by hand and fixed it by hand. Scroll sideways. Each frame is a real screenshot from the build.</p>
 <div class="strip">
 <figure class="frame"><img loading="lazy" src="./screenshots/day-6/stack-complete.png" alt="Stacks complete" onerror="this.closest('figure').style.display='none'"><figcaption>all stacks green</figcaption></figure>
 <figure class="frame"><img loading="lazy" src="./screenshots/day-6/alarms-list.png" alt="Alarms list" onerror="this.closest('figure').style.display='none'"><figcaption>8 alarms, one mail thread</figcaption></figure>
 <figure class="frame"><img loading="lazy" src="./screenshots/day-6/trail-logs.png" alt="Trail logs" onerror="this.closest('figure').style.display='none'"><figcaption>trail: who built what</figcaption></figure>
 <figure class="frame"><img loading="lazy" src="./screenshots/day-7/self-heal.png" alt="Self-heal drill" onerror="this.closest('figure').style.display='none'"><figcaption>kill-1-EC2 → ASG heals, still 200</figcaption></figure>
-<figure class="frame"><img loading="lazy" src="./screenshots/day-6/budget.png" alt="Budget" onerror="this.closest('figure').style.display='none'"><figcaption>$20 guardrail</figcaption></figure>
+<figure class="frame"><img loading="lazy" src="./screenshots/day-6/budget.png" alt="Budget" onerror="this.closest('figure').style.display='none'"><figcaption>$20 limit</figcaption></figure>
 </div>
-<p class="lede">Day logs live in <code>docs/days/</code> (day-0 → day-7). Authors: <code>git shortlog -sn --no-merges</code> — the names alternate, that is the handoff receipt.</p>
+<p class="lede">Day logs live in <code>docs/days/</code> (day-0 to day-7). Run <code>git shortlog -sn --no-merges</code>. Our two names take turns. That is the receipt.</p>
 </section>
 
 <section class="block" id="cost">
-<h2>Wallet guard</h2>
+<h2>Keeping it cheap</h2>
 <div class="cost-grid"><div>
 <p class="big"><span>$3.01</span>/day when up</p>
-<p class="lede">Biggest burners: RDS Multi-AZ + ALB + NAT. Nightly rule: delete compute, data and queue stacks; keep VPC + storage. $20 monthly budget mails at 60% actual and 100% forecast. Total billed to build this: ~$20–25.</p>
+<p class="lede">Biggest costs: the database, the load balancer, and the network gateway. Rule: shut down the compute, data, and queue stacks every night; keep network and storage. A $20 monthly budget mails us at 60% spent and at 100% forecast. Total spent building this: about $20 to $25.</p>
 </div>
-<figure class="frame"><img loading="lazy" src="./screenshots/day-6/budget.png" alt="Budget console" onerror="this.closest('figure').style.display='none'"><figcaption>fig.03 — the $20 leash</figcaption></figure></div>
+<figure class="frame"><img loading="lazy" src="./screenshots/day-6/budget.png" alt="Budget console" onerror="this.closest('figure').style.display='none'"><figcaption>fig.03: the $20 limit</figcaption></figure></div>
 </section>
 
 <section class="block" id="playground">
 <h2>Try the order flow</h2>
-<p class="lede">The AWS behind this is deleted, so the counter below runs the same validation in your browser: totals must balance, duplicate ids collide, packing follows receiving after a beat.</p>
+<p class="lede">The AWS behind this is deleted, so the demo below runs the same checks in your browser. Totals must add up. Reused ids get rejected. Packing follows receiving after a short wait.</p>
 <div class="terminal">
-<div><span class="prompt">$</span> POST /orders — canned demo: Neem Soap × 3 @ 99</div>
+<div><span class="prompt">$</span> POST /orders (demo: Neem Soap × 3 @ 99)</div>
 <form id="order-form">
 <label for="f-id">orderId</label><input id="f-id" type="text" value="ord-000050">
 <label for="f-qty">qty</label><input id="f-qty" type="number" value="3">
 <label for="f-price">price</label><input id="f-price" type="number" value="99">
 <label for="f-total">total (must equal qty × price)</label><input id="f-total" type="number" value="297">
-<p class="checkline"><label><input type="checkbox" id="f-changed"> send a changed payload (forces 409)</label></p>
+<p class="checkline"><label><input type="checkbox" id="f-changed"> send different data with the same id (forces 409)</label></p>
 <button type="submit">send order</button>
 </form>
 <pre class="out" id="order-out">202 {"orderId":"ord-000050","status":"RECEIVED"}</pre>
@@ -92,13 +94,13 @@
 <button type="submit">lookup</button>
 </form>
 <pre class="out" id="get-out"></pre>
-<noscript><p>JS disabled — equivalent: curl -X POST $ALB/orders -d '{"orderId":"ord-000050","items":[{"sku":"soap-neem-100g","qty":3,"price":99}],"total":297}'. See api-contracts.md.</p></noscript>
+<noscript><p>No JS? Same call by hand: curl -X POST $ALB/orders -d '{"orderId":"ord-000050","items":[{"sku":"soap-neem-100g","qty":3,"price":99}],"total":297}'. See api-contracts.md.</p></noscript>
 </div>
 </section>
 </main>
 
 <footer><div class="wrap">
-<span>Build · Learn · Document · Grow — DuoKart, an AWS learning project (us-east-2). MIT.</span>
+<span>Build, learn, document, grow. DuoKart, an AWS learning project (us-east-2). MIT.</span>
 <span><a href="https://github.com/prathameshlonare/duokart">Repo</a> · <a href="#control-room">Dashboard</a> · <a href="#playground">Demo</a></span>
 </div></footer>
 <script src="./assets/demo.js"></script>

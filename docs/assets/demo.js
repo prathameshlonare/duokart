@@ -18,12 +18,12 @@
       return;
     }
     if (total !== qty * price) {
-      out("order-out", { error: "TOTAL_MISMATCH", message: "total != sum(qty*price)" }, "400");
+      out("order-out", { error: "TOTAL_MISMATCH", message: "total does not match qty x price" }, "400");
       return;
     }
     var canon = JSON.stringify({ orderId: orderId, qty: qty, price: price, total: total });
     if (store[orderId] && (changed || store[orderId].canon !== canon)) {
-      out("order-out", { error: "CONFLICT", message: "duplicate orderId different payload" }, "409");
+      out("order-out", { error: "CONFLICT", message: "same id, different data" }, "409");
       return;
     }
     store[orderId] = { status: "RECEIVED", total: total, canon: canon };
@@ -63,6 +63,6 @@
     store[id].status = "DONE";
     out("order-out", { orderId: id, status: "DONE" }, "200");
     renderTimeline(["RECEIVED", "PACKING", "DONE"]);
-    el("mail-buyer").textContent = "Buyer mail: order " + id + " DELIVERED. Enjoy the Neem Soap.";
+    el("mail-buyer").textContent = "Buyer mail: order " + id + " DELIVERED.";
   });
 })();
