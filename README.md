@@ -9,6 +9,7 @@
 ![AWS](https://img.shields.io/badge/AWS-us--east--2-FF9900?style=flat-square&logo=amazonaws&logoColor=white)
 ![CloudFormation](https://img.shields.io/badge/IaC-CloudFormation-7A3E9D?style=flat-square)
 ![License: MIT](https://img.shields.io/badge/License-MIT-green?style=flat-square)
+[![Showcase](https://img.shields.io/badge/Showcase-GitHub_Pages-C2410C?style=flat-square)](https://prathameshlonare.github.io/duokart/)
 
 </div>
 
