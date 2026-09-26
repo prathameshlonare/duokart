@@ -30,6 +30,10 @@ jobs:
         run: |
           test -f docs/index.html
           test -f docs/.nojekyll
+          test -f docs/assets/site.css
+          test -f docs/assets/fonts/SpaceGrotesk-var.woff2
+          test -f docs/assets/fonts/JetBrainsMono-var.woff2
+          test ! -f docs/CNAME
           node --check docs/assets/demo.js
           for a in control-room alarms proofs cost playground; do grep -q "id=\"$a\"" docs/index.html || exit 1; done
           python -c "import re,os,sys;refs=set(re.findall(r'src=\"\./([^\"]+)\"',open('docs/index.html').read()));missing=[r for r in refs if not os.path.exists('docs/'+r)];sys.exit(1 if missing else 0)"
