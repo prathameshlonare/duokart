@@ -1,108 +1,539 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>DuoKart: Small Shop Order + Bill Manager</title>
-<meta name="description" content="DuoKart: Flask shop API on AWS (ALB + ASG + RDS + SQS + Lambda). Static showcase. Stacks deleted, screenshots are the proof.">
-<link rel="stylesheet" href="./assets/site.css">
-<link rel="preload" href="./assets/fonts/SpaceGrotesk-var.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="./assets/fonts/JetBrainsMono-var.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23C2410C'/%3E%3Ctext x='8' y='12' font-size='10' text-anchor='middle' fill='white' font-family='monospace'%3ED%3C/text%3E%3C/svg%3E">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DuoKart: Cloud &amp; DevOps Engineering Portfolio | Prathamesh Lonare</title>
+  <meta name="description" content="DuoKart: Resilient multi-tier AWS retail infrastructure. Built by Prathamesh Lonare (Cloud & DevOps Engineer) in a 2-person collaborative project.">
+    <link rel="stylesheet" href="./assets/site.css">
+  <link rel="preload" href="./assets/fonts/SpaceGrotesk-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="./assets/fonts/JetBrainsMono-var.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%23C2410C'/%3E%3Ctext x='8' y='12' font-size='10' text-anchor='middle' fill='white' font-family='monospace'%3ED%3C/text%3E%3C/svg%3E">
 </head>
 <body>
-<header class="topbar"><div class="wrap">
-<a class="wordmark" href="#">DuoKart<b>.</b></a>
-<span class="meta">flask · alb/asg · rds · sqs/lambda · us-east-2</span>
-<nav><a href="#proofs">Proofs</a><a href="#playground">Try API</a><a href="https://github.com/prathameshlonare/duokart">Repo</a></nav>
-</div></header>
 
-<section class="hero"><div class="wrap hero-grid">
-<div>
-<p class="kicker">DUOKART · AWS/DEVOPS · TWO BUILDERS</p>
-<h1>Bills never lost. Site stays up in festival rush.</h1>
-<p class="sub">A small shop app on AWS: Flask behind a load balancer, private servers, a database, file uploads, and a mail queue. Built by two friends learning DevOps. We broke every part on purpose, then fixed it.</p>
-<div class="cta-row"><a class="btn solid" href="#playground">Try the API</a><a class="btn ghost" href="#proofs">See the proof</a></div>
-</div>
-<figure class="frame"><img src="./architecture.png" alt="DuoKart architecture diagram" onerror="this.closest('figure').style.display='none'"><figcaption>fig.01: traffic: browser → ALB → ASG → RDS; orders: SQS → Lambda → DynamoDB → SNS</figcaption></figure>
-</div></section>
+  <!-- Top Navigation Bar -->
+  <header class="topbar">
+    <div class="wrap topbar-inner">
+      <div class="brand">
+        <a href="#hero" class="wordmark">DuoKart<span class="dot">.</span></a>
+        <span class="badge-role">Prathamesh Lonare &middot; DevOps</span>
+      </div>
+      
+      <div class="topbar-actions">
+        <a href="https://github.com/prathameshlonare/duokart" class="nav-ext-btn" target="_blank" rel="noopener">GitHub</a>
+        <button type="button" class="nav-toggle" id="navToggle" aria-label="Toggle navigation menu" aria-expanded="false">
+          <span class="nav-toggle-bar"></span>
+          <span class="nav-toggle-bar"></span>
+        </button>
+      </div>
 
-<main class="wrap">
-<div class="logstrip"><span class="k">status</span> · stacks deleted 2026-09-26 per destroy-checklist · destroy order <span class="k">02-compute → 05-queue → 03-data → 01-vpc → 04-storage</span> · ~$3.01/day when up · nothing below is live</div>
+      <nav class="nav-links" id="navLinks" aria-label="Main Navigation">
+        <a href="#overview">Overview</a>
+        <a href="#contributions">Contribution</a>
+        <a href="#proofs">Console Proofs</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#alarms">Alarms</a>
+        <a href="#playground">Try API</a>
+        <a href="https://github.com/prathameshlonare/duokart" class="nav-ext desktop-only" target="_blank" rel="noopener">GitHub</a>
+      </nav>
+    </div>
+  </header>
 
-<section class="block" id="control-room">
-<h2>The control room</h2>
-<p class="lede">One dashboard watched the whole shop. Each panel answers one question: are we losing money, or is the site down?</p>
-<figure class="frame"><img loading="lazy" src="./screenshots/day-6/dashboard.png" alt="CloudWatch dashboard" onerror="this.closest('figure').style.display='none'"><figcaption>fig.02: duokart-dev dashboard: requests, health, RDS, SQS age, DLQ, Lambda, DynamoDB</figcaption></figure>
-</section>
+  <!-- Status & Transparency Banner -->
+  <aside class="status-banner" aria-label="Infrastructure Status Notice">
+    <div class="wrap banner-inner">
+      <span class="status-pill"><span class="pulse-indicator" aria-hidden="true"></span> Retired Cloud Environment</span>
+      <p class="status-text">
+        <strong>AWS us-east-2 Environment:</strong> Decommissioned on 2026-09-26 to control costs (~$3.01/day running cost, $20 budget cap). Verified screenshots, telemetry, and architecture below provide empirical proof of deployment.
+      </p>
+    </div>
+  </aside>
 
-<section class="block" id="alarms">
-<h2>Eight alarms, one mailbox</h2>
-<p class="lede">Each alarm mails us before buyers notice a problem. Three of them show “insufficient data” when healthy. That means zero errors, not a broken alarm.</p>
-<div class="rows-scroll"><table class="rows"><tr><th>Alarm</th><th>Fires when</th><th>Why this number</th></tr>
-<tr><td class="num">alb-5xx</td><td class="num">5xx &gt; 10 / 5 min</td><td>Flask 500s only on real crashes</td></tr>
-<tr><td class="num">alb-unhealthy</td><td class="num">unhealthy &gt; 0, 2 min</td><td>Dead counter before ASG replace finishes</td></tr>
-<tr><td class="num">rds-cpu</td><td class="num">CPU &gt; 80% ×3</td><td>db.t3.micro is bursty; sustained 80% = leak</td></tr>
-<tr><td class="num">rds-storage</td><td class="num">free &lt; 5 GB</td><td>Early warning on 20 GB gp2</td></tr>
-<tr><td class="num">sqs-age</td><td class="num">oldest &gt; 300 s</td><td>Order sits 5 min unserved</td></tr>
-<tr><td class="num">dlq-depth</td><td class="num">visible ≥ 1</td><td>Any poison order pages us</td></tr>
-<tr><td class="num">worker-errors</td><td class="num">errors &gt; 0</td><td>Packer crashed: bad payload, SNS deny, DDB fail</td></tr>
-<tr><td class="num">ddb-throttle</td><td class="num">throttles &gt; 0</td><td>Hot orderId spike</td></tr></table></div>
-</section>
+  <main>
+    <!-- SECTION A: HERO / EXECUTIVE OVERVIEW (UNIFIED FOR HR & TECHNICAL INTERVIEWERS) -->
+    <section class="hero-section" id="hero">
+      <div class="wrap">
+        
+        <!-- Hero Header -->
+        <header class="hero-header">
+          <h1 class="hero-title">
+            Resilient Multi-Tier Cloud Architecture
+          </h1>
+          <p class="hero-subhead">
+            A small-shop order engine engineered on AWS across two Availability Zones. Decoupled via asynchronous queues and automated self-healing to prevent lost orders and isolate database failures during festival traffic rushes.
+          </p>
+        </header>
 
-<section class="block" id="proofs">
-<h2>Receipts, not claims</h2>
-<p class="lede">We broke each part by hand and fixed it by hand. Scroll sideways. Each frame is a real screenshot from the build.</p>
-<div class="strip">
-<figure class="frame"><img loading="lazy" src="./screenshots/day-6/stack-complete.png" alt="Stacks complete" onerror="this.closest('figure').style.display='none'"><figcaption>all stacks green</figcaption></figure>
-<figure class="frame"><img loading="lazy" src="./screenshots/day-6/alarms-list.png" alt="Alarms list" onerror="this.closest('figure').style.display='none'"><figcaption>8 alarms, one mail thread</figcaption></figure>
-<figure class="frame"><img loading="lazy" src="./screenshots/day-6/trail-logs.png" alt="Trail logs" onerror="this.closest('figure').style.display='none'"><figcaption>trail: who built what</figcaption></figure>
-<figure class="frame"><img loading="lazy" src="./screenshots/day-7/self-heal.png" alt="Self-heal drill" onerror="this.closest('figure').style.display='none'"><figcaption>kill-1-EC2 → ASG heals, still 200</figcaption></figure>
-<figure class="frame"><img loading="lazy" src="./screenshots/day-6/budget.png" alt="Budget" onerror="this.closest('figure').style.display='none'"><figcaption>$20 limit</figcaption></figure>
-</div>
-<p class="lede">Day logs live in <code>docs/days/</code> (day-0 to day-7). Run <code>git shortlog -sn --no-merges</code>. Our two names take turns. That is the receipt.</p>
-</section>
+        <!-- Executive Grid: What Was Built + My Personal Contribution + Governance -->
+        <div class="summary-grid" id="overview">
+          
+          <!-- Card 1: What Was Built -->
+          <article class="summary-card">
+            <div class="card-head">
+              <span class="card-badge">System Overview</span>
+              <h2 class="card-title">What Was Built</h2>
+            </div>
+            <p class="card-text">
+              A multi-tier retail order and billing backend on AWS. An internet-facing Application Load Balancer routes traffic to private EC2 instances (Auto Scaling Group) across two Availability Zones. Backed by private Multi-AZ RDS MySQL, direct S3 uploads, and SQS/Lambda asynchronous order decoupling.
+            </p>
+            <div class="card-metrics">
+              <div class="stat-pill">
+                <span class="stat-k">Primary Goal</span>
+                <span class="stat-v">Zero Lost Orders</span>
+              </div>
+              <div class="stat-pill">
+                <span class="stat-k">High Availability</span>
+                <span class="stat-v">2 Availability Zones</span>
+              </div>
+            </div>
+          </article>
 
-<section class="block" id="cost">
-<h2>Keeping it cheap</h2>
-<div class="cost-grid"><div>
-<p class="big"><span>$3.01</span>/day when up</p>
-<p class="lede">Biggest costs: the database, the load balancer, and the network gateway. Rule: shut down the compute, data, and queue stacks every night; keep network and storage. A $20 monthly budget mails us at 60% spent and at 100% forecast. Total spent building this: about $20 to $25.</p>
-</div>
-<figure class="frame"><img loading="lazy" src="./screenshots/day-6/budget.png" alt="Budget console" onerror="this.closest('figure').style.display='none'"><figcaption>fig.03: the $20 limit</figcaption></figure></div>
-</section>
+          <!-- Card 2: Personal Contribution (Prathamesh Lonare) -->
+          <article class="summary-card highlight-card" id="contributions">
+            <div class="card-head">
+              <span class="card-badge badge-accent">50/50 Collaboration</span>
+              <h2 class="card-title">My Personal Contribution (Prathamesh)</h2>
+            </div>
+            <p class="card-subtitle">
+              Collaborative build with Swapnil Kumbhare. 60+ alternating Git commits verify joint authorship.
+            </p>
+            <ul class="clean-list">
+              <li><strong>Compute &amp; App Layer:</strong> Built Flask REST API, systemd bootstrap unit, and EC2 Auto Scaling launch configuration.</li>
+              <li><strong>Database Integration:</strong> Connected private RDS MySQL with dynamic SSM Parameter Store secret injection.</li>
+              <li><strong>Direct File Storage:</strong> Implemented presigned S3 PUT endpoints to keep heavy file uploads off the application servers.</li>
+              <li><strong>Asynchronous Logic:</strong> Built order idempotency via <code>orderId</code> to prevent duplicate charges and state regression.</li>
+              <li><strong>Chaos Testing:</strong> Executed live EC2 termination drill, proving continuous 200 OK client availability.</li>
+            </ul>
+            <p class="partner-note">
+              <strong>Partner Contribution (Swapnil):</strong> VPC networking, CloudFormation base templates, and CloudWatch alarms/dashboard.
+            </p>
+          </article>
 
-<section class="block" id="playground">
-<h2>Try the order flow</h2>
-<p class="lede">The AWS behind this is deleted, so the demo below runs the same checks in your browser. Totals must add up. Reused ids get rejected. Packing follows receiving after a short wait.</p>
-<div class="terminal">
-<div><span class="prompt">$</span> POST /orders (demo: Neem Soap × 3 @ 99)</div>
-<form id="order-form">
-<label for="f-id">orderId</label><input id="f-id" type="text" value="ord-000050">
-<label for="f-qty">qty</label><input id="f-qty" type="number" value="3">
-<label for="f-price">price</label><input id="f-price" type="number" value="99">
-<label for="f-total">total (must equal qty × price)</label><input id="f-total" type="number" value="297">
-<p class="checkline"><label><input type="checkbox" id="f-changed"> send different data with the same id (forces 409)</label></p>
-<button type="submit">send order</button>
-</form>
-<pre class="out" id="order-out">202 {"orderId":"ord-000050","status":"RECEIVED"}</pre>
-<ul class="timeline" id="timeline"></ul>
-<p id="mail-owner"></p><p id="mail-buyer"></p>
-<p><button type="button" id="deliver">mark delivered</button></p>
-<form id="lookup-form">
-<label for="f-get">GET /orders/:id</label><input id="f-get" type="text" value="ord-000050">
-<button type="submit">lookup</button>
-</form>
-<pre class="out" id="get-out"></pre>
-<noscript><p>No JS? Same call by hand: curl -X POST $ALB/orders -d '{"orderId":"ord-000050","items":[{"sku":"soap-neem-100g","qty":3,"price":99}],"total":297}'. See api-contracts.md.</p></noscript>
-</div>
-</section>
-</main>
+          <!-- Card 3: Governance & Economics -->
+          <article class="summary-card">
+            <div class="card-head">
+              <span class="card-badge">Economics &amp; Governance</span>
+              <h2 class="card-title">Cost Discipline</h2>
+            </div>
+            <p class="card-text">
+              Architected on an AWS Free Tier account with strict spending guardrails. Total spend to build the entire system was approximately $20 to $25.
+            </p>
+            <div class="cost-breakdown">
+              <div class="cost-row">
+                <span class="cost-k">Daily Active Burn</span>
+                <span class="cost-v">~$3.01 / day (RDS Multi-AZ + ALB + NAT)</span>
+              </div>
+              <div class="cost-row">
+                <span class="cost-k">Budget Ceiling</span>
+                <span class="cost-v">$20.00 / month (Automated alert at 60% and 100%)</span>
+              </div>
+              <div class="cost-row">
+                <span class="cost-k">Decommissioning</span>
+                <span class="cost-v">Deleted 2026-09-26 per destroy checklist</span>
+              </div>
+            </div>
+          </article>
 
-<footer><div class="wrap">
-<span>Build, learn, document, grow. DuoKart, an AWS learning project (us-east-2). MIT.</span>
-<span><a href="https://github.com/prathameshlonare/duokart">Repo</a> · <a href="#control-room">Dashboard</a> · <a href="#playground">Demo</a></span>
-</div></footer>
-<script src="./assets/demo.js"></script>
+        </div>
+
+        <!-- AWS Services Badges -->
+        <div class="services-bar">
+          <span class="services-label">AWS services and stack:</span>
+          <div class="tag-cloud">
+            <span class="tag">AWS VPC (2 AZs)</span>
+            <span class="tag">Application Load Balancer</span>
+            <span class="tag">EC2 Auto Scaling</span>
+            <span class="tag">RDS MySQL Multi-AZ</span>
+            <span class="tag">Amazon S3 Presigned</span>
+            <span class="tag">SQS Standard + DLQ</span>
+            <span class="tag">AWS Lambda (Py 3.12)</span>
+            <span class="tag">DynamoDB</span>
+            <span class="tag">Amazon SNS</span>
+            <span class="tag">CloudWatch (8 Alarms)</span>
+            <span class="tag">AWS Budgets</span>
+            <span class="tag">CloudFormation</span>
+            <span class="tag">Python / Flask</span>
+            <span class="tag">Ubuntu Linux</span>
+          </div>
+        </div>
+
+        <!-- VERIFIED SCREENSHOT RECEIPTS (FRONT AND CENTER) -->
+        <section class="receipts-section" id="proofs">
+          <div class="receipts-header">
+            <h2 class="section-title">Verified AWS Console Receipts</h2>
+            <p class="section-lede">
+              Real console evidence captured during testing before infrastructure teardown. Click any plate to inspect full screenshots.
+            </p>
+          </div>
+
+          <div class="receipts-grid">
+            
+            <!-- Receipt 1: Self-Healing Drill -->
+            <article class="receipt-box" data-receipt="self-heal">
+              <div class="receipt-image-wrap">
+                <img src="./assets/screenshots/self-heal.png" alt="EC2 instance termination in AWS console" loading="lazy">
+                <span class="view-overlay">Click to Enlarge</span>
+              </div>
+              <div class="receipt-caption">
+                <h3 class="receipt-heading">1. EC2 Self-Healing Drill</h3>
+                <p class="receipt-text">
+                  Manually terminated instance <code>i-0c7ae07e</code> in us-east-2a. ASG replaced it in 4 min while ALB maintained uninterrupted 200 OK traffic.
+                </p>
+                <span class="receipt-link">View Termination Proof &rarr;</span>
+              </div>
+            </article>
+
+            <!-- Receipt 2: CloudWatch Dashboard -->
+            <article class="receipt-box" data-receipt="dashboard">
+              <div class="receipt-image-wrap">
+                <img src="./assets/screenshots/dashboard.png" alt="CloudWatch dashboard for duokart-dev" loading="lazy">
+                <span class="view-overlay">Click to Enlarge</span>
+              </div>
+              <div class="receipt-caption">
+                <h3 class="receipt-heading">2. Telemetry Control Room</h3>
+                <p class="receipt-text">
+                  Live dashboard: ALB requests, host health (2 healthy targets), RDS CPU, free storage trend, SQS message age, and DLQ poison depth.
+                </p>
+                <span class="receipt-link">View Telemetry Proof &rarr;</span>
+              </div>
+            </article>
+
+            <!-- Receipt 3: AWS Budget -->
+            <article class="receipt-box" data-receipt="budget">
+              <div class="receipt-image-wrap">
+                <img src="./assets/screenshots/budget.png" alt="AWS Budgets console showing $20 limit" loading="lazy">
+                <span class="view-overlay">Click to Enlarge</span>
+              </div>
+              <div class="receipt-caption">
+                <h3 class="receipt-heading">3. AWS Budget Governance</h3>
+                <p class="receipt-text">
+                  Cost discipline on a $25 student budget: $20 cap with email alerts at 60% ($12) and 100% forecast. Actual spend: ~$20 to $25.
+                </p>
+                <span class="receipt-link">View Billing Proof &rarr;</span>
+              </div>
+            </article>
+
+            <!-- Receipt 4: Order Pipeline & Email -->
+            <article class="receipt-box" data-receipt="order-e2e">
+              <div class="receipt-image-wrap">
+                <img src="./assets/screenshots/order-e2e.png" alt="PowerShell curl and Gmail notification" loading="lazy">
+                <span class="view-overlay">Click to Enlarge</span>
+              </div>
+              <div class="receipt-caption">
+                <h3 class="receipt-heading">4. Async Order Pipeline</h3>
+                <p class="receipt-text">
+                  PowerShell API call returned 202 RECEIVED; Lambda flipped status to PACKING; verified SNS confirmation email delivered to Gmail.
+                </p>
+                <span class="receipt-link">View Pipeline Proof &rarr;</span>
+              </div>
+            </article>
+
+          </div>
+        </section>
+
+      </div>
+    </section>
+
+    <!-- SECTION B: SYSTEM ARCHITECTURE -->
+    <section class="arch-section" id="architecture">
+      <div class="wrap">
+        
+        <header class="section-header">
+          <h2 class="section-title">End-to-End System Architecture</h2>
+          <p class="section-lede">
+            Requests enter via an internet-facing Application Load Balancer and terminate at private compute nodes. Relational persistence, file storage, and asynchronous processing are segregated into distinct security groups and fault domains.
+          </p>
+        </header>
+
+        <!-- Architecture Diagram Stage -->
+        <div class="arch-stage">
+          <div class="stage-toolbar">
+            <span class="stage-label">AWS Architecture Map: us-east-2 (Ohio)</span>
+            <div class="stage-actions">
+              <button type="button" class="btn-tool" id="btn-toggle-flow">Toggle Diagram Scale</button>
+              <button type="button" class="btn-tool" id="btn-expand-diagram">Full-Resolution Schematic</button>
+            </div>
+          </div>
+
+          <figure class="stage-figure" id="stage-schematic">
+            <img src="./assets/architecture.png" alt="DuoKart AWS Architecture Schematic: Public ALB, Multi-AZ ASG, Multi-AZ RDS, SQS, Lambda, DynamoDB, CloudWatch" class="schematic-img" id="main-schematic">
+            <figcaption class="stage-caption">
+              Production schematic: Web traffic passes from ALB (port 80) to private EC2 ASG (port 5000); relational persistence is restricted to RDS MySQL (port 3306); orders decouple into SQS Standard with Dead-Letter Queue redrive.
+            </figcaption>
+          </figure>
+        </div>
+
+        <!-- 4-Tier Architectural Breakdown (Concise & Scannable) -->
+        <div class="tiers-grid">
+          
+          <div class="tier-card">
+            <span class="tier-badge">Tier 1: Ingress</span>
+            <h3 class="tier-title">Public Load Balancing</h3>
+            <p class="tier-text">
+              Internet-facing ALB spans Public Subnet 1 (2a) and Public Subnet 2 (2b). Absorbs traffic surges and health-checks backend instances on port 5000 via <code>/health</code>.
+            </p>
+            <div class="tier-rule">Port 80 Inbound &rarr; Port 5000 Backend</div>
+          </div>
+
+          <div class="tier-card">
+            <span class="tier-badge">Tier 2: Compute</span>
+            <h3 class="tier-title">Private Auto Scaling Group</h3>
+            <p class="tier-text">
+              EC2 instances run in private subnets with zero public IPs. Inbound traffic allowed strictly from ALB security group. Outbound internet egress routed through a single NAT Gateway.
+            </p>
+            <div class="tier-rule">Min: 2, Max: 4 (t3.micro, Ubuntu 24.04)</div>
+          </div>
+
+          <div class="tier-card">
+            <span class="tier-badge">Tier 3: Persistence</span>
+            <h3 class="tier-title">Multi-AZ RDS MySQL 8.0</h3>
+            <p class="tier-text">
+              Stores catalog and relational orders. Automatic synchronous standby in AZ-2b. Port 3306 locked down exclusively to compute security group; public accessibility disabled.
+            </p>
+            <div class="tier-rule">Synchronous Standby Failover</div>
+          </div>
+
+          <div class="tier-card">
+            <span class="tier-badge">Tier 4: Asynchronous</span>
+            <h3 class="tier-title">SQS Queue &amp; Lambda Worker</h3>
+            <p class="tier-text">
+              Orders decouple into SQS Standard returning immediate HTTP 202. Dead-Letter Queue catches poison orders after 3 retries. Lambda worker performs conditional DynamoDB writes.
+            </p>
+            <div class="tier-rule">DLQ Redrive (maxReceiveCount: 3)</div>
+          </div>
+
+        </div>
+
+        <!-- Subsystems Technical Specifications -->
+        <div class="subsystems-wrap">
+          <div class="subsystems-header">
+            <h3 class="subsystems-title">Subsystem Isolation Specifications</h3>
+            <p class="subsystems-sub">Configuration parameters, security group bindings, and failure protections declared in CloudFormation.</p>
+          </div>
+
+          <!-- Subsystem Tabs -->
+          <div class="sub-tabs" role="tablist">
+            <button type="button" class="sub-tab-btn active" role="tab" aria-selected="true" data-sub="compute">Compute &amp; Ingress</button>
+            <button type="button" class="sub-tab-btn" role="tab" aria-selected="false" data-sub="data">Relational Data</button>
+            <button type="button" class="sub-tab-btn" role="tab" aria-selected="false" data-sub="async">Async Order Worker</button>
+            <button type="button" class="sub-tab-btn" role="tab" aria-selected="false" data-sub="storage">Storage &amp; Uploads</button>
+            <button type="button" class="sub-tab-btn" role="tab" aria-selected="false" data-sub="ops">Observability &amp; Cost</button>
+          </div>
+
+          <!-- Subsystem Card Display -->
+          <div class="sub-display" id="sub-display-content">
+            <!-- Populated via script.js -->
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- SECTION C: 8 PRODUCTION CLOUDWATCH ALARMS -->
+    <section class="alarms-section" id="alarms">
+      <div class="wrap">
+        <header class="alarms-header">
+          <div>
+            <h2 class="section-title">Eight Alarms, One Mailbox</h2>
+            <p class="section-lede">
+              Configured in CloudWatch to alert via SNS before buyers notice latency or failures. Three alarms indicate &ldquo;Insufficient Data&rdquo; during normal steady-state operations, signifying zero errors rather than broken instrumentation.
+            </p>
+          </div>
+          <button type="button" class="alarms-btn" data-modal-target="alarms">
+            Inspect Alarms Console Receipt &rarr;
+          </button>
+        </header>
+
+        <div class="table-wrap">
+          <table class="alarms-table">
+            <thead>
+              <tr>
+                <th>Alarm Metric</th>
+                <th>Trigger Criteria</th>
+                <th>Operational Rationale</th>
+                <th>Healthy State</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td class="alarm-metric">alb-5xx</td>
+                <td><span class="alarm-criteria">5xx &gt; 10 / 5 min</span></td>
+                <td class="alarm-reason">Flask 500 errors occur only on unhandled server exceptions or application crashes.</td>
+                <td><span class="alarm-status-pill ok">Active (OK)</span></td>
+              </tr>
+              <tr>
+                <td class="alarm-metric">alb-unhealthy</td>
+                <td><span class="alarm-criteria">unhealthy &gt; 0 for 2 min</span></td>
+                <td class="alarm-reason">Provides an early warning buffer before Auto Scaling instance replacement completes.</td>
+                <td><span class="alarm-status-pill ok">Active (OK)</span></td>
+              </tr>
+              <tr>
+                <td class="alarm-metric">rds-cpu</td>
+                <td><span class="alarm-criteria">CPU &gt; 80% &times; 3</span></td>
+                <td class="alarm-reason">db.t3.micro is a burstable instance; sustained 80% utilization signals a query bottleneck or memory leak.</td>
+                <td><span class="alarm-status-pill ok">Active (OK)</span></td>
+              </tr>
+              <tr>
+                <td class="alarm-metric">rds-storage</td>
+                <td><span class="alarm-criteria">free &lt; 5 GB</span></td>
+                <td class="alarm-reason">Early warning on 20 GB gp2 allocation, triggering storage auto-scale before disk exhaustion.</td>
+                <td><span class="alarm-status-pill ok">Active (OK)</span></td>
+              </tr>
+              <tr>
+                <td class="alarm-metric">sqs-age</td>
+                <td><span class="alarm-criteria">oldest &gt; 300 s</span></td>
+                <td class="alarm-reason">Catches worker lag if an order sits unserved in the ingestion queue for over 5 minutes.</td>
+                <td><span class="alarm-status-pill ok">Active (OK)</span></td>
+              </tr>
+              <tr>
+                <td class="alarm-metric">dlq-depth</td>
+                <td><span class="alarm-criteria">visible &ge; 1</span></td>
+                <td class="alarm-reason">Any poison or unparseable payload moved to Dead-Letter Queue immediately pages on-call.</td>
+                <td><span class="alarm-status-pill insufficient">0 (Insufficient)</span></td>
+              </tr>
+              <tr>
+                <td class="alarm-metric">worker-errors</td>
+                <td><span class="alarm-criteria">errors &gt; 0</span></td>
+                <td class="alarm-reason">Lambda worker execution failure: bad schema, SNS publish deny, or DynamoDB write rejection.</td>
+                <td><span class="alarm-status-pill insufficient">0 (Insufficient)</span></td>
+              </tr>
+              <tr>
+                <td class="alarm-metric">ddb-throttle</td>
+                <td><span class="alarm-criteria">throttles &gt; 0</span></td>
+                <td class="alarm-reason">Signals a hot orderId partition write spike exceeding provisioned capacity.</td>
+                <td><span class="alarm-status-pill insufficient">0 (Insufficient)</span></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- SECTION D: INTERACTIVE ORDER FLOW (IN-BROWSER CONTRACT SIMULATION) -->
+    <section class="playground-section" id="playground">
+      <div class="wrap">
+        <header class="playground-header">
+          <h2 class="section-title">Try the Order Flow</h2>
+          <p class="section-lede">
+            The AWS backend was decommissioned on 2026-09-26 to control costs ($20 budget cap). This interactive console simulates the exact API contract, idempotency validation, status transitions, and notification dispatch directly in your browser.
+          </p>
+        </header>
+
+        <div class="terminal-box">
+          <div class="terminal-header">
+            <div class="terminal-dots">
+              <span class="dot-red"></span>
+              <span class="dot-yellow"></span>
+              <span class="dot-green"></span>
+            </div>
+            <span class="terminal-title">duokart-order-simulation :5000</span>
+          </div>
+
+          <div class="terminal-prompt">
+            <code><span class="prompt">$</span> POST /orders (Demo: Neem Soap &times; 3 @ &#8377;99 = &#8377;297)</code>
+          </div>
+
+          <form id="order-form">
+            <div class="terminal-form-grid">
+              <div class="terminal-field">
+                <label for="f-id">orderId</label>
+                <input id="f-id" type="text" value="ord-000050" class="terminal-input">
+              </div>
+              <div class="terminal-field">
+                <label for="f-qty">qty</label>
+                <input id="f-qty" type="number" value="3" class="terminal-input">
+              </div>
+              <div class="terminal-field">
+                <label for="f-price">price</label>
+                <input id="f-price" type="number" value="99" class="terminal-input">
+              </div>
+              <div class="terminal-field">
+                <label for="f-total">total (must equal qty &times; price)</label>
+                <input id="f-total" type="number" value="297" class="terminal-input">
+              </div>
+            </div>
+
+            <label class="terminal-checkbox">
+              <input type="checkbox" id="f-changed">
+              Send altered data with same orderId (Triggers 409 Conflict idempotency rejection)
+            </label>
+
+            <div class="terminal-actions">
+              <button type="submit" class="btn-terminal">Send Order (POST /orders)</button>
+              <button type="button" id="deliver" class="btn-terminal-secondary">Mark Delivered (PACKING &rarr; DONE)</button>
+            </div>
+          </form>
+
+          <pre class="terminal-output" id="order-out">202 {"orderId": "ord-000050", "status": "RECEIVED"}</pre>
+
+          <ul class="terminal-timeline" id="timeline">
+            <li class="done">[DONE] RECEIVED</li>
+            <li class="done">[DONE] PACKING</li>
+            <li>[WAIT] DELIVERED</li>
+          </ul>
+
+          <div class="terminal-notifications">
+            <p id="mail-owner">SNS Owner Alert: New order ord-000050 RECEIVED (3 items @ 99)</p>
+            <p id="mail-buyer">SNS Buyer Alert: Order ord-000050 is PACKING. Total: 297</p>
+          </div>
+
+          <form id="lookup-form" class="terminal-lookup-row">
+            <label for="f-get">Query GET /orders/:id</label>
+            <input id="f-get" type="text" value="ord-000050" class="terminal-lookup-input">
+            <button type="submit" class="btn-terminal-secondary">Query Order</button>
+          </form>
+          <pre class="terminal-output" id="get-out" style="margin-top:12px;"></pre>
+
+          <div class="terminal-curl-note">
+            Equivalent curl command: <code>curl -X POST $ALB_DNS/orders -H "Content-Type: application/json" -d '{"orderId":"ord-000050","items":[{"sku":"soap-neem-100g","qty":3,"price":99}],"total":297}'</code>
+          </div>
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="wrap footer-inner">
+      <div class="footer-col">
+        <span class="footer-title">DuoKart Engineering Portfolio</span>
+        <p class="footer-note">
+          Engineered collaboratively by <strong>Prathamesh Lonare</strong> and <strong>Swapnil Kumbhare</strong>. Demonstrating multi-tier cloud resilience, operational telemetry, and verifiable DevOps engineering on AWS us-east-2.
+        </p>
+      </div>
+      <div class="footer-col">
+        <span class="footer-title">Verification Artifacts</span>
+        <ul class="footer-links">
+          <li><a href="https://github.com/prathameshlonare/duokart" target="_blank" rel="noopener">GitHub Source Repository</a></li>
+          <li><a href="https://github.com/prathameshlonare/duokart/tree/main/infra" target="_blank" rel="noopener">CloudFormation Infrastructure Stacks</a></li>
+          <li><a href="https://github.com/prathameshlonare/duokart#tradeoffs-each-row-cost-us-an-hour" target="_blank" rel="noopener">8 Engineering Trade-off War Stories</a></li>
+          <li><a href="https://github.com/prathameshlonare/duokart/tree/main/docs/days" target="_blank" rel="noopener">Day Logs (day-1 to day-7)</a></li>
+        </ul>
+      </div>
+      <div class="footer-col">
+        <span class="footer-title">Governance Status</span>
+        <p class="footer-badge">
+          Status: Verified &amp; Decommissioned<br>
+          Budget Ceiling: $20.00 MTD (Held to ~$20 to $25)<br>
+          Cloud Stacks: Deleted per destroy checklist
+        </p>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Lightbox / Modal for High-Resolution Schematic & Evidence -->
+  <div class="modal-overlay" id="image-modal" aria-hidden="true" role="dialog" aria-modal="true">
+    <div class="modal-dialog">
+      <button type="button" class="modal-close" id="modal-close-btn" aria-label="Close dialog">&times;</button>
+      <div class="modal-body" id="modal-body-content">
+        <!-- Injected via script.js -->
+      </div>
+    </div>
+  </div>
+
+  <script src="./assets/demo.js"></script>
 </body>
 </html>
+
