@@ -33,6 +33,16 @@ Two friends, one career path (AWS/DevOps), zero interest in another tutorial-cop
 
 Proven end to end: `ord-000049` (both inboxes same mail) → `ord-000050` (split mail) → kill-1-EC2 self-heal with ALB at `200` throughout.
 
+## 🛠️ Operations & Incident Runbooks
+
+Unlike tutorial projects that only document deployment, DuoKart includes production-grade incident triage runbooks based on real fault-injection drills:
+
+| Runbook | Failure Mode | Key Diagnostic Tools |
+| :--- | :--- | :--- |
+| [ALB 502/504 Triage](operations/RUNBOOK-01-ALB-Target-Health-and-5xx.md) | Target connection drop & gateway timeout | `ss -tlnp`, `journalctl`, Target Group health reason codes |
+| [EC2 Self-Healing & Disk Triage](operations/RUNBOOK-02-EC2-Self-Healing-and-Disk-Triage.md) | Inode exhaustion & automated node failover | `df -i`, `lsof +L1`, ASG connection draining lifecycle |
+| [SQS Dead-Letter Queue Triage](operations/RUNBOOK-03-SQS-Dead-Letter-Queue-Triage.md) | Corrupted order payload isolation | CloudWatch DLQ depth alarm, payload inspection, redrive |
+
 ## Who built what - verify in git, not my words
 
 No solo heroics. Every tier above went through alternating Discord handoffs per `WORKFLOW.md`: one types while the other reviews, then swap. Don't take this section's word for it:
